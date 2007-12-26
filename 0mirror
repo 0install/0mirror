@@ -1,0 +1,52 @@
+#!/usr/bin/env python
+from zeroinstall import SafeException
+from optparse import OptionParser
+import os, sys
+from logging import info, debug
+
+version = '0.1'
+
+parser = OptionParser(usage="usage: %prog [options] PUBLIC-DIR")
+parser.add_option("-v", "--verbose", help="more verbose output", action='count')
+parser.add_option("-V", "--version", help="display version information", action='store_true')
+
+(options, args) = parser.parse_args()
+
+if options.version:
+	print "0mirror (zero-install) " + version
+	print "Copyright (C) 2007 Thomas Leonard"
+	print "This program comes with ABSOLUTELY NO WARRANTY,"
+	print "to the extent permitted by law."
+	print "You may redistribute copies of this program"
+	print "under the terms of the GNU General Public License."
+	print "For more information about these matters, see the file named COPYING."
+	sys.exit(0)
+
+if options.verbose:
+	import logging
+	logger = logging.getLogger()
+	if options.verbose == 1:
+		logger.setLevel(logging.INFO)
+	else:
+		logger.setLevel(logging.DEBUG)
+
+if len(args) != 1:
+	parser.print_help()
+	sys.exit(1)
+public_dir = args[0]
+
+FEED_FILE = os.path.join(public_dir, 'feedlist')
+
+try:
+	if not os.path.isfile(FEED_FILE):
+		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line")
+	feeds = file(options.feed_file).read().split('\n')
+	for feed in feeds:
+		print feed
+except KeyboardInterrupt, ex:
+	print >>sys.stderr, "Aborted at user's request"
+	sys.exit(1)
+except SafeException, ex:
+	if options.verbose: raise
+	print >>sys.stderr, ex
+	sys.exit(1)

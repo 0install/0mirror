@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<interface xmlns="http://zero-install.sourceforge.net/2004/injector/interface">
+  <name>0mirror</name>
+  <summary>create a mirror of other Zero Install sites</summary>
+  <description>
+When installing or upgrading software, the Zero Install injector (0launch)
+normally downloads information about each program and library from its own site.
+However, the network connection to this site may be unavailable, unreliable or
+slow. 0mirror lets you set up a mirror site which republishes these feeds as a
+backup.</description>
+  <homepage>http://0install.net/0mirror.html</homepage>
+
+  <release:management xmlns:release="http://zero-install.sourceforge.net/2007/namespaces/0release">
+    <!-- Update the copy of the version number in the main program -->
+    <release:action phase="commit-release">sed -i &quot;s/^version = '.*'$/version = '$RELEASE_VERSION'/&quot; 0mirror</release:action>
+  </release:management>
+
+  <feed-for interface="http://0install.net/2007/interfaces/0mirror.xml"/>
+  <category>Network</category>
+
+  <group main="0mirror">
+    <implementation id="." version="0.1-pre"/>
+  </group>
+</interface>
