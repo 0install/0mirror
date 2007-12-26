@@ -35,14 +35,30 @@ if len(args) != 1:
 	sys.exit(1)
 public_dir = args[0]
 
-FEED_FILE = os.path.join(public_dir, 'feedlist')
+feed_file = os.path.join(public_dir, 'feed-list')
+
+def escape_slashes(path):
+	return path.replace('/', '#')
 
 try:
-	if not os.path.isfile(FEED_FILE):
-		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line")
-	feeds = file(options.feed_file).read().split('\n')
+	if not os.path.isdir(public_dir):
+		raise SafeException("Public directory '%s' does not exist. "
+				    "To setup a new site, create it as an empty directory now." % public_dir)
+	if not os.path.isfile(feed_file):
+		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line" % feed_file)
+	feeds = filter(None, file(feed_file).read().split('\n'))
 	for feed in feeds:
-		print feed
+		info("Processing feed '%s'", feed)
+		if '#' in feed:
+			raise SafeException("Invalid URL '%s'" % feed)
+		scheme, rest = feed.split('://', 1)
+		domain, rest = rest.split('/', 1)
+		for x in [scheme, domain, rest]:
+			if not x or x.startswith(','):
+				raise SafeException("Invalid URL '%s'" % feed)
+		feed_dir = os.path.join(public_dir, 'feeds', scheme, domain, escape_slashes(rest))
+		if not os.path.isdir(feed_dir):
+			os.makedirs(feed_dir)
 except KeyboardInterrupt, ex:
 	print >>sys.stderr, "Aborted at user's request"
 	sys.exit(1)
