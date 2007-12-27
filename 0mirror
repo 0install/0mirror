@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 from optparse import OptionParser
-import os, sys, time, shutil
+import os, sys, time, shutil, subprocess
 from logging import info, debug, warn
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import basedir, model, namespaces, policy, handler
+from zeroinstall.injector import basedir, model, namespaces, policy, handler, gpg
 
 version = '0.1'
 
@@ -43,6 +43,25 @@ feed_file = os.path.join(public_dir, 'feed-list')
 def escape_slashes(path):
 	return path.replace('/', '#')
 
+def ensure_dirs(path):
+	if not os.path.isdir(path):
+		os.makedirs(path)
+
+key_dir = os.path.join(public_dir, 'keys')
+ensure_dirs(key_dir)
+keys = set()
+def ensure_key(fingerprint):
+	if fingerprint in keys:
+		return
+	key_path = os.path.join(key_dir, fingerprint[-16:] + '.gpg')
+	child = subprocess.Popen(['gpg', '-a', '--export', fingerprint], stdout = subprocess.PIPE)
+	keydata, unused = child.communicate()
+	stream = file(key_path, 'w')
+	stream.write(keydata)
+	stream.close()
+	print "Exported key", fingerprint
+	keys.add(fingerprint)
+
 try:
 	if not os.path.isdir(public_dir):
 		raise SafeException("Public directory '%s' does not exist. "
@@ -62,40 +81,59 @@ try:
 			if not x or x.startswith(','):
 				raise SafeException("Invalid URL '%s'" % feed)
 		feed_dir = os.path.join(public_dir, 'feeds', scheme, domain, escape_slashes(rest))
-		if not os.path.isdir(feed_dir):
-			os.makedirs(feed_dir)
+		ensure_dirs(feed_dir)
 
-		print "Updating", feed
+		#print "Updating", feed
 		p = policy.Policy(feed, handler)
 		p.stale_feeds = set()
 		iface = p.get_interface(feed)	# May start a download
 		for x in p.stale_feeds:
 			print "Updating stale feed", feed
 			p.begin_iface_download(x)
-		try:
-			handler.wait_for_downloads()
-		except SafeException, ex:
-			warn("Error updating '%s': %s", feed, str(ex))
-			continue
+		if handler.monitored_downloads:
+			print "Waiting for downloads for", feed
+			try:
+				handler.wait_for_downloads()
+			except SafeException, ex:
+				warn("Error updating '%s': %s", feed, str(ex))
+				continue
 
 		cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(feed))
 		if not cached:
-			print "Not cached", feed
+			# Error during download?
+			warn("Attempted to fetch '%s', but still not cached", feed)
 			continue
 
-		last_modified = int(os.stat(cached).st_mtime)
-		version_name = time.strftime('%Y-%m-%d.xml', time.gmtime(last_modified))
-		version_path = os.path.join(feed_dir, version_name)
-		if os.path.exists(version_path):
-			continue
-		shutil.copyfile(cached, version_path)
 		latest = os.path.join(feed_dir, 'latest')
+
+		last_modified = int(os.stat(cached).st_mtime)
+		version_name = time.strftime('%Y-%m-%d_%H:%M.xml', time.gmtime(last_modified))
+		version_path = os.path.join(feed_dir, version_name)
+
+		if os.path.islink(latest) and os.readlink(latest) == version_name:
+			if os.path.exists(version_path):
+				continue
+			warn("Broken symlink '%s'!", latest)
+
+		# Get the keys
+		stream = file(cached)
+		unused, sigs = gpg.check_stream(stream)
+		stream.close()
+
+		for x in sigs:
+			if isinstance(x, gpg.ValidSig):
+				ensure_key(x.fingerprint)
+			else:
+				warn("Signature problem: ", x)
+
+		shutil.copyfile(cached, version_path)
 		latest_new = latest + '.new'
 		if os.path.exists(latest_new):
 			os.unlink(latest_new)
 		os.symlink(version_name, latest_new)
 		os.rename(latest_new, latest)
 		print "Updated %s to %s" % (feed, version_name)
+		
 except KeyboardInterrupt, ex:
 	print >>sys.stderr, "Aborted at user's request"
 	sys.exit(1)
