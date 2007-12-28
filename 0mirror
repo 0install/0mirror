@@ -135,7 +135,12 @@ try:
 			warn("Attempted to fetch '%s', but still not cached", feed)
 			continue
 
-		latest = os.path.join(feed_dir, 'latest')
+		style = os.path.join(feed_dir, 'interface.xsl')
+		os.unlink(style)
+		if not os.path.islink(style):
+			os.symlink('../../../../feed_style.xsl', style)
+
+		latest = os.path.join(feed_dir, 'latest.xml')
 
 		last_modified = int(os.stat(cached).st_mtime)
 		version_name = time.strftime('%Y-%m-%d_%H:%M.xml', time.gmtime(last_modified))
@@ -176,7 +181,7 @@ try:
 		news_feed.add_entry(title = "%s feed updated" % iface.get_name(),
 			       link = iface.uri,
 			       extra_links = {'http://0install.net/2007/namespaces/0mirror/cached':
-			       			site_address + "/" + get_feed_dir(iface.uri).replace('#', '%23') + "/latest"},
+			       			site_address + "/" + get_feed_dir(iface.uri).replace('#', '%23') + "/latest.xml"},
 			       entry_id = iface.uri,
 			       updated = format_date(date),
 			       summary = summary.documentElement)
