@@ -7,6 +7,11 @@ from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
 from zeroinstall.injector import basedir, model, namespaces, policy, handler, gpg
 
+from atom import AtomFeed
+
+# Site configuration!
+site_address = "http://roscidus.com/0mirror"
+
 version = '0.1'
 
 parser = OptionParser(usage="usage: %prog [options] PUBLIC-DIR")
@@ -62,6 +67,17 @@ def ensure_key(fingerprint):
 	print "Exported key", fingerprint
 	keys.add(fingerprint)
 
+ifaces = []
+
+def format_date(date):
+	return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(date))
+
+now = format_date(time.time())
+news_feed = AtomFeed(title = "Zero Install News Feed",
+			link = site_address + "/news.atom",
+			updated = now,
+			author = "0mirror")
+
 try:
 	if not os.path.isdir(public_dir):
 		raise SafeException("Public directory '%s' does not exist. "
@@ -87,16 +103,19 @@ try:
 		p = policy.Policy(feed, handler)
 		p.stale_feeds = set()
 		iface = p.get_interface(feed)	# May start a download
+		ifaces.append(iface)
 		for x in p.stale_feeds:
 			print "Updating stale feed", feed
 			p.begin_iface_download(x)
 		if handler.monitored_downloads:
 			print "Waiting for downloads for", feed
 			try:
-				handler.wait_for_downloads()
+				errors = handler.wait_for_downloads()
 			except SafeException, ex:
 				warn("Error updating '%s': %s", feed, str(ex))
 				continue
+			for error in errors or []:
+				print error
 
 		cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(feed))
 		if not cached:
@@ -133,7 +152,20 @@ try:
 		os.symlink(version_name, latest_new)
 		os.rename(latest_new, latest)
 		print "Updated %s to %s" % (feed, version_name)
-		
+
+	latest_ifaces = [(iface.last_modified, iface) for iface in ifaces]
+	latest_ifaces.sort()
+	latest_ifaces = reversed(latest_ifaces[-16:])
+	for date, iface in latest_ifaces:
+		news_feed.add_entry(title = "%s feed updated" % iface.get_name(),
+			       link = iface.uri,
+			       entry_id = iface.uri,
+			       updated = format_date(date))
+	
+	news_stream = file(os.path.join(public_dir, 'news-feed.xml'), 'w')
+	news_feed.save(news_stream)
+	news_stream.close()
+
 except KeyboardInterrupt, ex:
 	print >>sys.stderr, "Aborted at user's request"
 	sys.exit(1)
