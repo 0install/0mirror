@@ -1,3 +1,6 @@
+# Copyright (C) 2007, Thomas Leonard
+# See the COPYING file for details, or visit http://0install.net.
+
 from xml.dom import minidom
 
 empty_atom_feed_xml = """<?xml version="1.0" encoding="utf-8"?>

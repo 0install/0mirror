@@ -18,7 +18,7 @@ backup.</description>
   <feed-for interface="http://0install.net/2007/interfaces/0mirror.xml"/>
   <category>Network</category>
 
-  <group main="0mirror">
+  <group license="OSI Approved :: GNU General Public License (GPL)" main="0mirror">
     <implementation id="." version="0.1-pre"/>
   </group>
 </interface>
