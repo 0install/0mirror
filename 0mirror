@@ -2,12 +2,13 @@
 from optparse import OptionParser
 import os, sys, time, shutil, subprocess
 from logging import info, debug, warn
+from xml.dom import minidom
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
 from zeroinstall.injector import basedir, model, namespaces, policy, handler, gpg
 
-from atom import AtomFeed
+from atom import AtomFeed, set_element
 
 # Site configuration!
 site_address = "http://roscidus.com/0mirror"
@@ -52,6 +53,14 @@ def ensure_dirs(path):
 	if not os.path.isdir(path):
 		os.makedirs(path)
 
+summary_xml = """
+<summary type='xhtml'>
+  <div xmlns="http://www.w3.org/1999/xhtml">
+    <a href=""/> - <span/>
+  </div>
+</summary>
+"""
+
 key_dir = os.path.join(public_dir, 'keys')
 ensure_dirs(key_dir)
 keys = set()
@@ -72,6 +81,17 @@ ifaces = []
 def format_date(date):
 	return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(date))
 
+def get_feed_dir(url):
+	if '#' in feed:
+		raise SafeException("Invalid URL '%s'" % feed)
+	scheme, rest = feed.split('://', 1)
+	domain, rest = rest.split('/', 1)
+	assert scheme in ('http', 'https', 'ftp')	# Just to check for mal-formed lines; add more as needed
+	for x in [scheme, domain, rest]:
+		if not x or x.startswith(','):
+			raise SafeException("Invalid URL '%s'" % feed)
+	return os.path.join('feeds', scheme, domain, escape_slashes(rest))
+
 now = format_date(time.time())
 news_feed = AtomFeed(title = "Zero Install News Feed",
 			link = site_address + "/news.atom",
@@ -88,15 +108,7 @@ try:
 	handler = handler.Handler()
 	for feed in feeds:
 		info("Processing feed '%s'", feed)
-		if '#' in feed:
-			raise SafeException("Invalid URL '%s'" % feed)
-		scheme, rest = feed.split('://', 1)
-		domain, rest = rest.split('/', 1)
-		assert scheme in ('http', 'https', 'ftp')	# Just to check for mal-formed lines; add more as needed
-		for x in [scheme, domain, rest]:
-			if not x or x.startswith(','):
-				raise SafeException("Invalid URL '%s'" % feed)
-		feed_dir = os.path.join(public_dir, 'feeds', scheme, domain, escape_slashes(rest))
+		feed_dir = os.path.join(public_dir, get_feed_dir(feed))
 		ensure_dirs(feed_dir)
 
 		#print "Updating", feed
@@ -157,10 +169,17 @@ try:
 	latest_ifaces.sort()
 	latest_ifaces = reversed(latest_ifaces[-16:])
 	for date, iface in latest_ifaces:
+		summary = minidom.parseString(summary_xml)
+		set_element(summary, "summary/div/a", iface.get_name())
+		set_element(summary, "summary/div/a/@href", iface.uri)
+		set_element(summary, "summary/div/span", iface.summary)
 		news_feed.add_entry(title = "%s feed updated" % iface.get_name(),
 			       link = iface.uri,
+			       extra_links = {'http://0install.net/2007/namespaces/0mirror/cached':
+			       			site_address + "/" + get_feed_dir(iface.uri).replace('#', '%23') + "/latest"},
 			       entry_id = iface.uri,
-			       updated = format_date(date))
+			       updated = format_date(date),
+			       summary = summary.documentElement)
 	
 	news_stream = file(os.path.join(public_dir, 'news-feed.xml'), 'w')
 	news_feed.save(news_stream)

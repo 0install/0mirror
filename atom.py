@@ -18,7 +18,6 @@ empty_element_xml = """
     <link href=""/>
     <id></id>
     <updated></updated>
-    <summary></summary>
   </entry>
 """
 
@@ -29,7 +28,7 @@ def set_element(doc, path, value):
 			node.setAttribute(element[1:], value)
 			return
 		for child in node.childNodes:
-			if child.localName == element:
+			if child.nodeName == element:
 				node = child
 				break
 		else:
@@ -65,7 +64,7 @@ class AtomFeed:
 	def save(self, stream):
 		self.doc.writexml(stream)
 
-	def add_entry(self, title, link, entry_id, updated, summary = None):
+	def add_entry(self, title, link, entry_id, updated, summary = None, extra_links = []):
 		entry_doc = minidom.parseString(empty_element_xml)
 
 		def set(path, value): set_element(entry_doc, path, value)
@@ -75,10 +74,13 @@ class AtomFeed:
 		set("entry/id", entry_id)
 		set("entry/updated", updated)
 		
-		if summary:
-			set("entry/summary", summary)
-		else:
-			remove(entry_doc, "entry/summary")
+		entry_doc.documentElement.appendChild(entry_doc.importNode(summary, deep = True))
+
+		for extra_link in extra_links:
+			element = entry_doc.createElement('link')
+			element.setAttribute('rel', extra_link)
+			element.setAttribute('href', extra_links[extra_link])
+			entry_doc.documentElement.appendChild(element)
 
 		entry = self.doc.importNode(entry_doc.documentElement, deep = True)
 		self.doc.documentElement.appendChild(entry)
