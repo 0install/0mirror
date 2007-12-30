@@ -3,9 +3,11 @@
 # See the COPYING file for details, or visit http://0install.net.
 
 from optparse import OptionParser
-import os, sys, time, shutil, subprocess
+import os, sys, time, shutil, subprocess, signal
 from logging import info, debug, warn
 from xml.dom import minidom
+
+signal.alarm(10 * 60)		# Abort after 10 minutes
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
@@ -139,7 +141,6 @@ try:
 			continue
 
 		style = os.path.join(feed_dir, 'interface.xsl')
-		os.unlink(style)
 		if not os.path.islink(style):
 			os.symlink('../../../../feed_style.xsl', style)
 
