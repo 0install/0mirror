@@ -99,7 +99,7 @@ def get_feed_dir(url):
 
 now = format_date(time.time())
 news_feed = AtomFeed(title = "Zero Install News Feed",
-			link = site_address + "/news.atom",
+			link = site_address + "/news-feed.xml",
 			updated = now,
 			author = "0mirror")
 
