@@ -1,4 +1,4 @@
-# Copyright (C) 2007, Thomas Leonard
+# Copyright (C) 2008, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
 from xml.dom import minidom
@@ -25,6 +25,7 @@ empty_element_xml = """
 """
 
 def set_element(doc, path, value):
+	assert type(value) in (str, unicode), value
 	node = doc
 	for element in path.split('/'):
 		if element.startswith('@'):
@@ -67,7 +68,7 @@ class AtomFeed:
 	def save(self, stream):
 		self.doc.writexml(stream)
 
-	def add_entry(self, title, link, entry_id, updated, summary = None, extra_links = []):
+	def add_entry(self, title, link, entry_id, updated, summary = None, extra_links = {}):
 		entry_doc = minidom.parseString(empty_element_xml)
 
 		def set(path, value): set_element(entry_doc, path, value)

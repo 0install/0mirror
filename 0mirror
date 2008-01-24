@@ -86,7 +86,7 @@ ifaces = []
 def format_date(date):
 	return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(date))
 
-def get_feed_dir(url):
+def get_feed_dir(feed):
 	if '#' in feed:
 		raise SafeException("Invalid URL '%s'" % feed)
 	scheme, rest = feed.split('://', 1)
@@ -109,6 +109,7 @@ try:
 				    "To setup a new site, create it as an empty directory now." % public_dir)
 	if not os.path.isfile(feed_file):
 		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line" % feed_file)
+	print "Reading", feed_file
 	feeds = filter(None, file(feed_file).read().split('\n'))
 	handler = handler.Handler()
 	for feed in feeds:
