@@ -20,5 +20,9 @@ backup.</description>
 
   <group license="OSI Approved :: GNU General Public License (GPL)" main="0mirror">
     <implementation id="." version="0.1-pre"/>
+    <requires interface="http://0install.net/2007/interfaces/ZeroInstall.xml">
+      <version before="0.32"/>
+      <environment insert="" mode="prepend" name="PYTHONPATH"/>
+    </requires>
   </group>
 </interface>
