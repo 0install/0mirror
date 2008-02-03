@@ -1,7 +1,7 @@
 # Copyright (C) 2008, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
-from xml.dom import minidom
+from xml.dom import minidom, Node
 
 empty_atom_feed_xml = """<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -25,7 +25,7 @@ empty_element_xml = """
 """
 
 def set_element(doc, path, value):
-	assert type(value) in (str, unicode), value
+	assert type(value) in (str, unicode, Node), value
 	node = doc
 	for element in path.split('/'):
 		if element.startswith('@'):
@@ -37,7 +37,9 @@ def set_element(doc, path, value):
 				break
 		else:
 			raise Exception("Not found: %s (in %s)" % (element, path))
-	node.appendChild(doc.createTextNode(value))
+	if not isinstance(value, Node):
+		value = doc.createTextNode(value)
+	node.appendChild(value)
 
 def remove(doc, path):
 	node = doc

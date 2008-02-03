@@ -11,7 +11,7 @@ signal.alarm(10 * 60)		# Abort after 10 minutes
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import basedir, model, namespaces, policy, handler, gpg
+from zeroinstall.injector import basedir, model, namespaces, policy, handler, gpg, handler
 
 from atom import AtomFeed, set_element
 
@@ -66,6 +66,24 @@ summary_xml = """
 </summary>
 """
 
+unconfirmed_keys_xml = """
+<summary type='xhtml'>
+  <div xmlns="http://www.w3.org/1999/xhtml">
+    New keys awaiting confirmation:
+    <dl>
+    </dl>
+  </div>
+</summary>
+"""
+
+unconfirmed_keys = []
+class NonInteractiveHandler(handler.Handler):
+	def confirm_trust_keys(self, interface, sigs, iface_xml):
+		for x in sigs:
+			warn("Need to check key %s for %s", x, interface)
+			unconfirmed_keys.append((interface, x))
+		return None
+
 key_dir = os.path.join(public_dir, 'keys')
 ensure_dirs(key_dir)
 keys = set()
@@ -103,6 +121,7 @@ news_feed = AtomFeed(title = "Zero Install News Feed",
 			updated = now,
 			author = "0mirror")
 
+feed = None
 try:
 	if not os.path.isdir(public_dir):
 		raise SafeException("Public directory '%s' does not exist. "
@@ -111,7 +130,7 @@ try:
 		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line" % feed_file)
 	print "Reading", feed_file
 	feeds = filter(None, file(feed_file).read().split('\n'))
-	handler = handler.Handler()
+	handler = NonInteractiveHandler()
 	for feed in feeds:
 		info("Processing feed '%s'", feed)
 		feed_dir = os.path.join(public_dir, get_feed_dir(feed))
@@ -140,6 +159,12 @@ try:
 			# Error during download?
 			warn("Attempted to fetch '%s', but still not cached", feed)
 			continue
+
+		for subfeed in iface.feeds:
+			if subfeed.uri not in feeds:
+				if subfeed.uri.startswith('/'):
+					continue
+				print "WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, iface.get_name())
 
 		style = os.path.join(feed_dir, 'interface.xsl')
 		if not os.path.islink(style):
@@ -174,6 +199,26 @@ try:
 		os.symlink(version_name, latest_new)
 		os.rename(latest_new, latest)
 		print "Updated %s to %s" % (feed, version_name)
+	
+	feed = None
+	
+	if unconfirmed_keys:
+		summary = minidom.parseString(unconfirmed_keys_xml)
+		dl = summary.getElementsByTagNameNS("http://www.w3.org/1999/xhtml", "dl")[0]
+		for iface, sig in unconfirmed_keys:
+			dt = summary.createElementNS("http://www.w3.org/1999/xhtml", "dt")
+			dl.appendChild(dt)
+			dt.appendChild(summary.createTextNode(iface.uri))
+
+			dd = summary.createElementNS("http://www.w3.org/1999/xhtml", "dd")
+			dl.appendChild(dd)
+			dd.appendChild(summary.createTextNode(str(sig)))
+
+		news_feed.add_entry(title = "Keys awaiting confirmation",
+			       link = site_address + "/news-feed.xml",
+			       entry_id = "unconfirmed-keys",
+			       updated = format_date(time.time()),
+			       summary = summary.documentElement)
 
 	latest_ifaces = [(iface.last_modified, iface) for iface in ifaces]
 	latest_ifaces.sort()
@@ -201,4 +246,6 @@ except KeyboardInterrupt, ex:
 except SafeException, ex:
 	if options.verbose: raise
 	print >>sys.stderr, ex
+	if feed:
+		print "(while processing %s)" % feed
 	sys.exit(1)
