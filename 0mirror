@@ -285,6 +285,19 @@ try:
 	news_feed.save(news_stream)
 	news_stream.close()
 
+	# Warn about possible missing feeds...
+	child = subprocess.Popen(['0launch', '--list'], stdout = subprocess.PIPE)
+	all_feeds, unused = child.communicate()
+	all_feeds = set([x for x in all_feeds.split('\n') if x and not x.startswith('/')])
+	unknown = all_feeds - known_set
+
+	if unknown:
+		print "\nUnknown feeds (add to known or ignore lists):"
+		for feed in sorted(unknown):
+			if '/tests/' in feed: continue
+			print feed
+
+
 except KeyboardInterrupt, ex:
 	print >>sys.stderr, "Aborted at user's request"
 	sys.exit(1)
