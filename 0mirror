@@ -15,6 +15,7 @@ from zeroinstall.injector import model, namespaces, policy, handler, gpg, handle
 from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
+from stats import Stats
 
 # Site configuration!
 site_address = "http://roscidus.com/0mirror"
@@ -152,6 +153,7 @@ news_feed = AtomFeed(title = "Zero Install News Feed",
 
 feed = None
 try:
+	stats = Stats()
 	if not os.path.isdir(public_dir):
 		raise SafeException("Public directory '%s' does not exist. "
 				    "To setup a new site, create it as an empty directory now." % public_dir)
@@ -249,6 +251,13 @@ try:
 
 	feed = None
 
+	for feed_url in feed_uris:
+		feed = iface_cache.get_feed(feed_url)
+		if feed and feed.last_modified:
+			stats.add_feed(feed)
+
+	stats.write_summary(public_dir)
+
 	if unconfirmed_keys:
 		summary = minidom.parseString(unconfirmed_keys_xml)
 		dl = summary.getElementsByTagNameNS("http://www.w3.org/1999/xhtml", "dl")[0]
@@ -301,17 +310,18 @@ try:
 	news_feed.save(news_stream)
 	news_stream.close()
 
-	# Warn about possible missing feeds...
-	child = subprocess.Popen(['0launch', '--list'], stdout = subprocess.PIPE)
-	all_feeds, unused = child.communicate()
-	all_feeds = set([x for x in all_feeds.split('\n') if x and not x.startswith('/')])
-	unknown = all_feeds - known_set
+	if False:
+		# Warn about possible missing feeds...
+		child = subprocess.Popen(['0launch', '--list'], stdout = subprocess.PIPE)
+		all_feeds, unused = child.communicate()
+		all_feeds = set([x for x in all_feeds.split('\n') if x and not x.startswith('/')])
+		unknown = all_feeds - known_set
 
-	if unknown:
-		print "\nUnknown feeds (add to known or ignore lists):"
-		for feed in sorted(unknown):
-			if '/tests/' in feed: continue
-			print feed
+		if unknown:
+			print "\nUnknown feeds (add to known or ignore lists):"
+			for feed in sorted(unknown):
+				if '/tests/' in feed: continue
+				print feed
 
 
 except KeyboardInterrupt, ex:
