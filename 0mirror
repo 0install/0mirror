@@ -11,12 +11,18 @@ signal.alarm(10 * 60)		# Abort after 10 minutes
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import basedir, model, namespaces, policy, handler, gpg, handler
+from zeroinstall.injector import model, namespaces, policy, handler, gpg, handler
+from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
 
 # Site configuration!
 site_address = "http://roscidus.com/0mirror"
+
+# Where we try if the primary site fails
+my_mirror = None
+
+FEED_TIMEOUT = 60	# Seconds to wait before giving up on a feed download
 
 version = '0.1'
 
@@ -28,7 +34,7 @@ parser.add_option("-V", "--version", help="display version information", action=
 
 if options.version:
 	print "0mirror (zero-install) " + version
-	print "Copyright (C) 2007 Thomas Leonard"
+	print "Copyright (C) 2010 Thomas Leonard"
 	print "This program comes with ABSOLUTELY NO WARRANTY,"
 	print "to the extent permitted by law."
 	print "You may redistribute copies of this program"
@@ -86,14 +92,22 @@ warnings_xml = """
 </summary>
 """
 
-unconfirmed_keys = []
+unconfirmed_keys = [] # List of PendingFeeds
 class NonInteractiveHandler(handler.Handler):
-	def confirm_trust_keys(self, interface, sigs, iface_xml):
-		for x in sigs:
-			warn("Need to check key %s for %s", x, interface)
-			unconfirmed_keys.append((interface, x))
+	def confirm_import_feed(self, pending, valid_sigs):
+		for x in valid_sigs:
+			warn("Need to check key %s for %s", x.fingerprint, pending.url)
+			unconfirmed_keys.append(pending)
 		return None
-	
+
+@tasks.async
+def wait_with_timeout(delay, blocker):
+	timeout = tasks.TimeoutBlocker(FEED_TIMEOUT, 'Mirror timeout')
+	yield timeout, blocker
+	tasks.check(timeout, blocker)
+	if not blocker.happened:
+		raise Exception("Timeout (waited %d seconds)" % delay)
+
 warnings = []
 def add_warning(msg):
 	warn(msg)
@@ -114,7 +128,7 @@ def ensure_key(fingerprint):
 	print "Exported key", fingerprint
 	keys.add(fingerprint)
 
-ifaces = []
+feeds = []
 
 def format_date(date):
 	return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(date))
@@ -145,57 +159,59 @@ try:
 		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line" % feed_file)
 	print "Reading", feed_file
 
-	feeds = filter(None, file(feed_file).read().split('\n'))
-	feed_set = set(feeds)
+	feed_uris = filter(None, file(feed_file).read().split('\n'))
+	feed_set = set(feed_uris)
 	ignore_set = set(filter(None, file(ignore_file).read().split('\n')))
 	known_set = feed_set | ignore_set
 
 	handler = NonInteractiveHandler()
-	for feed in feeds:
-		info("Processing feed '%s'", feed)
-		feed_dir = os.path.join(public_dir, get_feed_dir(feed))
+	for feed_url in feed_uris:
+		info("Processing feed '%s'", feed_url)
+		feed_dir = os.path.join(public_dir, get_feed_dir(feed_url))
 		ensure_dirs(feed_dir)
 
-		#print "Updating", feed
-		p = policy.Policy(feed, handler)
-		p.stale_feeds = set()
-		iface = p.get_interface(feed)	# May start a download
-		ifaces.append(iface)
-		for x in p.stale_feeds:
-			print "Updating stale feed", feed
-			p.begin_iface_download(x)
-		if handler.monitored_downloads:
-			print "Waiting for downloads for", feed
+		#print "Updating", feed_url
+		p = policy.Policy(feed_url, handler)
+		p.fetcher.feed_mirror = my_mirror
+		feed = iface_cache.get_feed(feed_url)
+		if p.is_stale(feed):
+			if feed and feed.last_modified:
+				mtime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(feed.last_modified))
+				print "Feed %s last updated %s; updating..." % (feed_url, mtime_str)
+			else:
+				print "Feed %s is new; fetching..." % feed_url
+			blocker = p.fetcher.download_and_import_feed(feed_url, iface_cache)
 			try:
-				errors = handler.wait_for_downloads()
-			except SafeException, ex:
-				add_warning("Error updating '%s': %s" % (feed, str(ex)))
+				handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
+			except Exception, ex:
+				add_warning("Error fetching '%s': %s" % (feed_url, ex))
 				continue
-			for error in errors or []:
-				add_warning("Error updating '%s': %s" % (feed, str(error)))
+			# Reload
+			feed = iface_cache.get_feed(feed_url)
+			if not feed:
+				# Error during download?
+				add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
+				continue
+		feeds.append(feed)
 
-		cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(feed))
-		if not cached:
-			# Error during download?
-			add_warning("Attempted to fetch '%s', but still not cached" % feed)
-			continue
+		cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(feed.url))
+		assert cached is not None
 
-		for subfeed in iface.feeds:
+		for subfeed in feed.feeds:
 			if subfeed.uri not in known_set:
 				if subfeed.uri.startswith('/'):
 					continue
-				add_warning("WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, iface.get_name()))
+				add_warning("WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, feed.get_name()))
 
 		# Check dependencies
-		for impl in iface.implementations.values():
-			if hasattr(impl, 'dependencies'):
-				for dep in impl.dependencies.values():
-					if dep.interface not in known_set:
-						add_warning("Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), iface.get_name(), dep.interface))
-						break
-				else:
-					continue
-				break	# Once we've warned about one version, don't check any other versions
+		for impl in feed.implementations.values():
+			for dep in impl.requires:
+				if dep.interface not in known_set:
+					add_warning("Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), feed.get_name(), dep.interface))
+					break
+			else:
+				continue
+			break	# Once we've warned about one version, don't check any other versions
 
 		style = os.path.join(feed_dir, 'interface.xsl')
 		if not os.path.islink(style):
@@ -230,20 +246,20 @@ try:
 		os.symlink(version_name, latest_new)
 		os.rename(latest_new, latest)
 		print "Updated %s to %s" % (feed, version_name)
-	
+
 	feed = None
-	
+
 	if unconfirmed_keys:
 		summary = minidom.parseString(unconfirmed_keys_xml)
 		dl = summary.getElementsByTagNameNS("http://www.w3.org/1999/xhtml", "dl")[0]
-		for iface, sig in unconfirmed_keys:
+		for pending_feed in unconfirmed_keys:
 			dt = summary.createElementNS("http://www.w3.org/1999/xhtml", "dt")
 			dl.appendChild(dt)
-			dt.appendChild(summary.createTextNode(iface.uri))
+			dt.appendChild(summary.createTextNode(pending_feed.url))
 
 			dd = summary.createElementNS("http://www.w3.org/1999/xhtml", "dd")
 			dl.appendChild(dd)
-			dd.appendChild(summary.createTextNode(str(sig)))
+			dd.appendChild(summary.createTextNode(str(pending_feed.sigs[0].fingerprint)))
 
 		news_feed.add_entry(title = "Keys awaiting confirmation",
 			       link = site_address + "/news-feed.xml",
@@ -265,22 +281,22 @@ try:
 			       updated = format_date(time.time()),
 			       summary = summary.documentElement)
 
-	latest_ifaces = [(iface.last_modified, iface) for iface in ifaces]
-	latest_ifaces.sort()
-	latest_ifaces = reversed(latest_ifaces[-16:])
-	for date, iface in latest_ifaces:
+	latest_feeds = [(feed.last_modified, feed) for feed in feeds]
+	latest_feeds.sort()
+	latest_feeds = reversed(latest_feeds[-16:])
+	for date, feed in latest_feeds:
 		summary = minidom.parseString(summary_xml)
-		set_element(summary, "summary/div/a", iface.get_name())
-		set_element(summary, "summary/div/a/@href", iface.uri)
-		set_element(summary, "summary/div/span", iface.summary)
-		news_feed.add_entry(title = "%s feed updated" % iface.get_name(),
-			       link = iface.uri,
+		set_element(summary, "summary/div/a", feed.get_name())
+		set_element(summary, "summary/div/a/@href", feed.url)
+		set_element(summary, "summary/div/span", feed.summary)
+		news_feed.add_entry(title = "%s feed updated" % feed.get_name(),
+			       link = feed.url,
 			       extra_links = {'http://0install.net/2007/namespaces/0mirror/cached':
-			       			site_address + "/" + get_feed_dir(iface.uri).replace('#', '%23') + "/latest.xml"},
-			       entry_id = iface.uri,
+						site_address + "/" + get_feed_dir(feed.url).replace('#', '%23') + "/latest.xml"},
+			       entry_id = feed.url,
 			       updated = format_date(date),
 			       summary = summary.documentElement)
-	
+
 	news_stream = file(os.path.join(public_dir, 'news-feed.xml'), 'w')
 	news_feed.save(news_stream)
 	news_stream.close()
