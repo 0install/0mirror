@@ -1,11 +1,13 @@
 # Copyright (C) 2010, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
-import os, time
+import os, time, codecs
 import xml.etree.ElementTree as ET
 
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import gpg
+from zeroinstall.injector import gpg, trust
+
+from support import ensure_dirs, get_feed_dir
 
 def format_date(date):
 	return time.strftime("%Y-%m-%d", time.gmtime(date))
@@ -24,11 +26,6 @@ aliases = {
 test_keys = set()
 test_keys.add('5E22F6A13A76F396AC68B5F29B1F5D7F9721DA90')
 test_keys.add('2E32123D8BE241A3B6D91E0301685F11607BB2C5')
-
-def ensure_dir(path):
-	if not os.path.isdir(path):
-		os.mkdir(path)
-	return path
 
 class User:
 	def __init__(self):
@@ -52,14 +49,16 @@ class User:
 
 		name = ET.SubElement(root, 'name')
 		name.text = self.key.get_short_name()
+		import codecs
+		print codecs.encode(self.key.get_short_name(), 'utf-8')
 
 		feeds = ET.SubElement(root, 'feeds')
 
-		sorted_feeds = sorted([(feed.get_name(), feed) for feed in self.feeds])
-		for name, feed in sorted_feeds:
+		sorted_feeds = sorted([(feed.get_name().lower(), feed) for feed in self.feeds])
+		for unused, feed in sorted_feeds:
 			feed_element = ET.SubElement(feeds, 'feed')
 			feed_element.attrib['url'] = feed.url
-			feed_element.attrib['name'] = name
+			feed_element.attrib['name'] = feed.get_name()
 			feed_element.attrib['implementations'] = str(len(feed.implementations))
 			feed_element.attrib['last-modified'] = format_date(feed.last_modified)
 			feed_element.attrib['summary'] = feed.summary
@@ -74,10 +73,30 @@ class User:
 	def get_karma(self):
 		return 10 * self.n_feeds + self.n_implementations
 
+def export_users(pairs):
+	root = ET.Element('users')
+	for karma, user in pairs:
+		elem = ET.SubElement(root, "user")
+		elem.attrib["name"] = user.key.get_short_name()
+		elem.attrib["karma"] = str(karma)
+		elem.attrib["uid"] = user.key.fingerprint
+	return ET.ElementTree(root)
+
+def export_sites(tuples):
+	root = ET.Element('sites')
+	for n_feeds, domain, feeds in tuples:
+		elem = ET.SubElement(root, "site")
+		elem.attrib["name"] = domain
+		elem.attrib["feeds"] = str(n_feeds)
+		# This isn't quite right... a domain may have http and ftp feeds, for example
+		elem.attrib["feed-path"] = os.path.dirname(get_feed_dir(feeds[0].url))
+	return ET.ElementTree(root)
+
 """Keep track of some statistics."""
 class Stats:
 	def __init__(self):
 		self.users = {}		# Fingerprint -> User
+		self.sites = {}		# Domain -> [Feed]
 	
 	def add_feed(self, feed):
 		sigs = iface_cache.get_cached_signatures(feed.url)
@@ -91,16 +110,34 @@ class Stats:
 			if fingerprint not in self.users:
 				self.users[fingerprint] = User()
 			self.users[fingerprint].add_feed(feed, sig)
+
+		domain = trust.domain_from_url(feed.url)
+		if domain not in self.sites:
+			self.sites[domain] = []
+		self.sites[domain].append(feed)
 	
 	def write_summary(self, topdir):
 		names = []
 		keys = gpg.load_keys(self.users.keys())
+		top_users = []
 		for fingerprint, user in self.users.iteritems():
 			user.key = keys[fingerprint]
+			try:
+				# 0launch <= 0.45 doesn't returns names in unicode
+				unicode(user.key.name)
+			except:
+				user.key.name = codecs.decode(user.key.name, 'utf-8')
 			names.append((user.key.name, fingerprint))
 		for name, fingerprint in sorted(names):
 			user = self.users[fingerprint]
-			print '%s (%s feeds and %s implementations)' % (name, user.n_feeds, user.n_implementations)
-			user_dir = ensure_dir(os.path.join(topdir, 'users', fingerprint))
+			user_dir = ensure_dirs(os.path.join(topdir, 'users', fingerprint))
 			user_xml = user.as_xml()
-			user_xml.write(os.path.join(user_dir, 'user.xml'))
+			user_xml.write(os.path.join(user_dir, 'user.xml'), encoding='utf-8')
+			top_users.append((user.get_karma(), user))
+
+		users_xml = export_users(reversed(sorted(top_users)))
+		users_xml.write(os.path.join(topdir, 'top-users.xml'), encoding='utf-8')
+
+		top_sites = [(len(feeds), domain, feeds) for domain, feeds in self.sites.iteritems()]
+		sites_xml = export_sites(reversed(sorted(top_sites)))
+		sites_xml.write(os.path.join(topdir, 'top-sites.xml'), encoding='utf-8')

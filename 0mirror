@@ -16,6 +16,7 @@ from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
 from stats import Stats
+from support import format_date, get_feed_dir, ensure_dirs
 
 # Site configuration!
 site_address = "http://roscidus.com/0mirror"
@@ -58,13 +59,6 @@ public_dir = args[0]
 
 feed_file = os.path.join(public_dir, 'feed-list')
 ignore_file = os.path.join(public_dir, 'ignore-list')
-
-def escape_slashes(path):
-	return path.replace('/', '#')
-
-def ensure_dirs(path):
-	if not os.path.isdir(path):
-		os.makedirs(path)
 
 summary_xml = """
 <summary type='xhtml'>
@@ -130,20 +124,6 @@ def ensure_key(fingerprint):
 	keys.add(fingerprint)
 
 feeds = []
-
-def format_date(date):
-	return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(date))
-
-def get_feed_dir(feed):
-	if '#' in feed:
-		raise SafeException("Invalid URL '%s'" % feed)
-	scheme, rest = feed.split('://', 1)
-	domain, rest = rest.split('/', 1)
-	assert scheme in ('http', 'https', 'ftp')	# Just to check for mal-formed lines; add more as needed
-	for x in [scheme, domain, rest]:
-		if not x or x.startswith(','):
-			raise SafeException("Invalid URL '%s'" % feed)
-	return os.path.join('feeds', scheme, domain, escape_slashes(rest))
 
 now = format_date(time.time())
 news_feed = AtomFeed(title = "Zero Install News Feed",
