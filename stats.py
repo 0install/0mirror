@@ -27,6 +27,15 @@ test_keys = set()
 test_keys.add('5E22F6A13A76F396AC68B5F29B1F5D7F9721DA90')
 test_keys.add('2E32123D8BE241A3B6D91E0301685F11607BB2C5')
 
+def make_feed_element(parent, feed):
+	feed_element = ET.SubElement(parent, 'feed')
+	feed_element.attrib['local-dir'] = get_feed_dir(feed.url).replace('#', '%23')
+	feed_element.attrib['url'] = feed.url
+	feed_element.attrib['name'] = feed.get_name()
+	feed_element.attrib['implementations'] = str(len(feed.implementations))
+	feed_element.attrib['last-modified'] = format_date(feed.last_modified)
+	feed_element.attrib['summary'] = feed.summary
+
 class User:
 	def __init__(self):
 		self.feeds = set()
@@ -56,13 +65,7 @@ class User:
 
 		sorted_feeds = sorted([(feed.get_name().lower(), feed) for feed in self.feeds])
 		for unused, feed in sorted_feeds:
-			feed_element = ET.SubElement(feeds, 'feed')
-			feed_element.attrib['local-dir'] = get_feed_dir(feed.url).replace('#', '%23')
-			feed_element.attrib['url'] = feed.url
-			feed_element.attrib['name'] = feed.get_name()
-			feed_element.attrib['implementations'] = str(len(feed.implementations))
-			feed_element.attrib['last-modified'] = format_date(feed.last_modified)
-			feed_element.attrib['summary'] = feed.summary
+			make_feed_element(feeds, feed)
 
 		stats = ET.SubElement(root, 'stats')
 		stats.attrib['feeds'] = str(self.n_feeds)
@@ -89,8 +92,7 @@ def export_sites(tuples):
 		elem = ET.SubElement(root, "site")
 		elem.attrib["name"] = domain
 		elem.attrib["feeds"] = str(n_feeds)
-		# This isn't quite right... a domain may have http and ftp feeds, for example
-		elem.attrib["feed-path"] = os.path.dirname(get_feed_dir(feeds[0].url))
+		elem.attrib["site-path"] = 'sites/site-%s.html' % domain
 	return ET.ElementTree(root)
 
 """Keep track of some statistics."""
@@ -145,6 +147,16 @@ class Stats:
 
 		users_xml = export_users(reversed(sorted(top_users)))
 		users_xml.write(os.path.join(topdir, 'top-users.xml'), encoding='utf-8')
+
+		for domain, feeds in self.sites.iteritems():
+			site = ET.Element('site')
+			site.attrib["name"] = domain
+			feeds_elem = ET.SubElement(site, "feeds")
+			sorted_feeds = sorted([(feed.get_name().lower(), feed) for feed in feeds])
+			for name, feed in sorted_feeds:
+				make_feed_element(feeds_elem, feed)
+			site_xml = ET.ElementTree(site)
+			site_xml.write(os.path.join(topdir, 'sites', 'site-%s.xml' % domain), encoding='utf-8')
 
 		top_sites = [(len(feeds), domain, feeds) for domain, feeds in self.sites.iteritems()]
 		sites_xml = export_sites(reversed(sorted(top_sites)))
