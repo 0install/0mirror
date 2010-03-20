@@ -57,6 +57,7 @@ class User:
 		sorted_feeds = sorted([(feed.get_name().lower(), feed) for feed in self.feeds])
 		for unused, feed in sorted_feeds:
 			feed_element = ET.SubElement(feeds, 'feed')
+			feed_element.attrib['local-dir'] = get_feed_dir(feed.url).replace('#', '%23')
 			feed_element.attrib['url'] = feed.url
 			feed_element.attrib['name'] = feed.get_name()
 			feed_element.attrib['implementations'] = str(len(feed.implementations))
@@ -97,11 +98,12 @@ class Stats:
 	def __init__(self):
 		self.users = {}		# Fingerprint -> User
 		self.sites = {}		# Domain -> [Feed]
+		self.feeds = []
 	
 	def add_feed(self, feed):
+		metadata = ET.Element('metadata')
+
 		sigs = iface_cache.get_cached_signatures(feed.url)
-		if not sigs:
-			return
 
 		for sig in sigs:
 			fingerprint = aliases.get(sig.fingerprint, sig.fingerprint)
@@ -111,10 +113,16 @@ class Stats:
 				self.users[fingerprint] = User()
 			self.users[fingerprint].add_feed(feed, sig)
 
+			signer = ET.SubElement(metadata, "signer")
+			signer.attrib["user"] = fingerprint
+			signer.attrib["date"] = format_date(sig.get_timestamp())
+
 		domain = trust.domain_from_url(feed.url)
 		if domain not in self.sites:
 			self.sites[domain] = []
 		self.sites[domain].append(feed)
+
+		self.feeds.append((feed, metadata))
 	
 	def write_summary(self, topdir):
 		names = []
@@ -141,3 +149,13 @@ class Stats:
 		top_sites = [(len(feeds), domain, feeds) for domain, feeds in self.sites.iteritems()]
 		sites_xml = export_sites(reversed(sorted(top_sites)))
 		sites_xml.write(os.path.join(topdir, 'top-sites.xml'), encoding='utf-8')
+
+		for feed, metadata in self.feeds:
+			for signer in metadata.findall("signer"):
+				fingerprint = signer.attrib["user"]
+				user = self.users[fingerprint]
+				signer.attrib["name"] = user.key.get_short_name()
+
+			metadata_xml = ET.ElementTree(metadata)
+			feed_dir = get_feed_dir(feed.url)
+			metadata_xml.write(os.path.join(topdir, feed_dir, 'metadata.xml'), encoding='utf-8')

@@ -276,12 +276,11 @@ try:
 	for date, feed in latest_feeds:
 		summary = minidom.parseString(summary_xml)
 		set_element(summary, "summary/div/a", feed.get_name())
-		set_element(summary, "summary/div/a/@href", feed.url)
+		local_html_page = site_address + "/" + get_feed_dir(feed.url).replace('#', '%23') + "/feed.html"
+		set_element(summary, "summary/div/a/@href", local_html_page)
 		set_element(summary, "summary/div/span", feed.summary)
 		news_feed.add_entry(title = "%s feed updated" % feed.get_name(),
-			       link = feed.url,
-			       extra_links = {'http://0install.net/2007/namespaces/0mirror/cached':
-						site_address + "/" + get_feed_dir(feed.url).replace('#', '%23') + "/latest.xml"},
+			       link = local_html_page,
 			       entry_id = feed.url,
 			       updated = format_date(date),
 			       summary = summary.documentElement)
