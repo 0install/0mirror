@@ -36,6 +36,21 @@ def make_feed_element(parent, feed):
 	feed_element.attrib['last-modified'] = format_date(feed.last_modified)
 	feed_element.attrib['summary'] = feed.summary
 
+def contents(path):
+	if not os.path.exists(path):
+		return None
+	with open(path) as stream:
+		return stream.read()
+
+def write_if_changed(xml, path):
+	new = path + '.net'
+	xml.write(new, encoding='utf-8')
+	if contents(path) == contents(new):
+		os.unlink(new)
+	else:
+		os.rename(new, path)
+		print "Updated", path
+
 class User:
 	def __init__(self):
 		self.feeds = set()
@@ -59,7 +74,6 @@ class User:
 		name = ET.SubElement(root, 'name')
 		name.text = self.key.get_short_name()
 		import codecs
-		print codecs.encode(self.key.get_short_name(), 'utf-8')
 
 		feeds = ET.SubElement(root, 'feeds')
 
@@ -142,11 +156,11 @@ class Stats:
 			user = self.users[fingerprint]
 			user_dir = ensure_dirs(os.path.join(topdir, 'users', fingerprint))
 			user_xml = user.as_xml()
-			user_xml.write(os.path.join(user_dir, 'user.xml'), encoding='utf-8')
+			write_if_changed(user_xml, os.path.join(user_dir, 'user.xml'))
 			top_users.append((user.get_karma(), user))
 
 		users_xml = export_users(reversed(sorted(top_users)))
-		users_xml.write(os.path.join(topdir, 'top-users.xml'), encoding='utf-8')
+		write_if_changed(users_xml, os.path.join(topdir, 'top-users.xml'))
 
 		for domain, feeds in self.sites.iteritems():
 			site = ET.Element('site')
@@ -156,11 +170,11 @@ class Stats:
 			for name, feed in sorted_feeds:
 				make_feed_element(feeds_elem, feed)
 			site_xml = ET.ElementTree(site)
-			site_xml.write(os.path.join(topdir, 'sites', 'site-%s.xml' % domain), encoding='utf-8')
+			write_if_changed(site_xml, os.path.join(topdir, 'sites', 'site-%s.xml' % domain))
 
 		top_sites = [(len(feeds), domain, feeds) for domain, feeds in self.sites.iteritems()]
 		sites_xml = export_sites(reversed(sorted(top_sites)))
-		sites_xml.write(os.path.join(topdir, 'top-sites.xml'), encoding='utf-8')
+		write_if_changed(sites_xml, os.path.join(topdir, 'top-sites.xml'))
 
 		for feed, metadata in self.feeds:
 			for signer in metadata.findall("signer"):
@@ -170,4 +184,4 @@ class Stats:
 
 			metadata_xml = ET.ElementTree(metadata)
 			feed_dir = get_feed_dir(feed.url)
-			metadata_xml.write(os.path.join(topdir, feed_dir, 'metadata.xml'), encoding='utf-8')
+			write_if_changed(metadata_xml, os.path.join(topdir, feed_dir, 'metadata.xml'))
