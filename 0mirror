@@ -171,10 +171,13 @@ try:
 		raise SafeException("File '%s' does not exist. It should contain a list of feed URLs, one per line" % feed_file)
 	print "Reading", feed_file
 
-	feed_uris = filter(None, file(feed_file).read().split('\n'))
+	lines = filter(None, file(feed_file).read().split('\n'))
+	feed_uris = [line for line in lines if not line.startswith('-')]
 	feed_set = set(feed_uris)
 	ignore_set = set(filter(None, file(ignore_file).read().split('\n')))
-	known_set = feed_set | ignore_set
+	inactive_set = set(line[1:] for line in lines if line.startswith('-'))
+
+	known_set = feed_set | inactive_set
 
 	handler = NonInteractiveHandler()
 	for feed_url in feed_uris:
@@ -213,7 +216,8 @@ try:
 			if subfeed.uri not in known_set:
 				if subfeed.uri.startswith('/'):
 					continue
-				add_warning("WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, feed.get_name()))
+				if subfeed.uri not in ignore_set:
+					add_warning("WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, feed.get_name()))
 
 		# Check dependencies
 		for impl in feed.implementations.values():
@@ -261,10 +265,10 @@ try:
 
 	feed = None
 
-	for feed_url in feed_uris:
+	for feed_url in known_set:
 		feed = load_feed(feed_url)
 		if feed and feed.last_modified:
-			stats.add_feed(feed)
+			stats.add_feed(feed, feed_url in feed_set)
 
 	stats.write_summary(public_dir)
 
