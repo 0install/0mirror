@@ -12,7 +12,7 @@ signal.alarm(10 * 60)		# Abort after 10 minutes
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import model, namespaces, policy, handler, gpg, handler
+from zeroinstall.injector import model, namespaces, policy, handler, gpg, handler, qdom, distro
 from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
@@ -138,6 +138,29 @@ news_feed = AtomFeed(title = "Zero Install News Feed",
 			updated = now,
 			author = "0mirror")
 
+fake_distro = distro.Distribution()
+
+def load_feed(url):
+	cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(url))
+	if cached:
+		with open(cached) as stream:
+			root = qdom.parse(stream)
+			feed = model.ZeroInstallFeed(root, None, fake_distro)
+			feed.last_modified = int(os.stat(cached).st_mtime)
+
+			# We don't currently have a clean way to get the last checked time using
+			# the library...
+			user = basedir.load_first_config(namespaces.config_site, 'injector',
+							   'user_overrides', model.escape(url))
+			if user:
+				root = qdom.parse(file(user))
+				last_checked = root.getAttribute('last-checked')
+				if last_checked:
+					feed.last_checked = int(last_checked)
+
+			return feed
+	return None
+
 feed = None
 try:
 	stats = Stats()
@@ -162,7 +185,7 @@ try:
 		#print "Updating", feed_url
 		p = policy.Policy(feed_url, handler)
 		p.fetcher.feed_mirror = my_mirror
-		feed = iface_cache.get_feed(feed_url)
+		feed = load_feed(feed_url)
 		if p.is_stale(feed):
 			if feed and feed.last_modified:
 				ctime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(feed.last_checked))
@@ -176,7 +199,7 @@ try:
 				add_warning("Error fetching '%s': %s" % (feed_url, ex))
 				continue
 			# Reload
-			feed = iface_cache.get_feed(feed_url)
+			feed = load_feed(feed_url)
 			if not feed:
 				# Error during download?
 				add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
@@ -239,7 +262,7 @@ try:
 	feed = None
 
 	for feed_url in feed_uris:
-		feed = iface_cache.get_feed(feed_url)
+		feed = load_feed(feed_url)
 		if feed and feed.last_modified:
 			stats.add_feed(feed)
 
