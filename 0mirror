@@ -165,8 +165,8 @@ try:
 		feed = iface_cache.get_feed(feed_url)
 		if p.is_stale(feed):
 			if feed and feed.last_modified:
-				mtime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(feed.last_modified))
-				print "Feed %s last updated %s; updating..." % (feed_url, mtime_str)
+				ctime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(feed.last_checked))
+				print "Feed %s last checked %s; updating..." % (feed_url, ctime_str)
 			else:
 				print "Feed %s is new; fetching..." % feed_url
 			blocker = p.fetcher.download_and_import_feed(feed_url, iface_cache)
