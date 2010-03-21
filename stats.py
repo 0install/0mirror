@@ -5,7 +5,8 @@ import os, time, codecs
 import xml.etree.ElementTree as ET
 
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import gpg, trust
+from zeroinstall.injector import gpg, trust, namespaces, model, qdom
+from zeroinstall.support import basedir
 
 from support import ensure_dirs, get_feed_dir
 
@@ -32,7 +33,7 @@ def make_feed_element(parent, feed):
 	feed_element.attrib['local-dir'] = get_feed_dir(feed.url).replace('#', '%23')
 	feed_element.attrib['url'] = feed.url
 	feed_element.attrib['name'] = feed.get_name()
-	feed_element.attrib['implementations'] = str(len(feed.implementations))
+	feed_element.attrib['implementations'] = str(count_impls(feed.url))
 	feed_element.attrib['last-modified'] = format_date(feed.last_modified)
 	feed_element.attrib['summary'] = feed.summary
 
@@ -51,6 +52,27 @@ def write_if_changed(xml, path):
 		os.rename(new, path)
 		print "Updated", path
 
+cached_counts = {}
+def count_impls(url):
+	if url not in cached_counts:
+		cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(url))
+		if cached:
+			with open(cached) as stream:
+				cached_doc = qdom.parse(stream)
+			def count(elem):
+				c = 0
+				if elem.uri != namespaces.XMLNS_IFACE: return 0
+				if elem.name == 'implementation' or elem.name == 'package-implementation':
+					c += 1
+				else:
+					for child in elem.childNodes:
+						c += count(child)
+				return c
+			cached_counts[url] = count(cached_doc)
+		else:
+			cached_counts[url] = 0
+	return cached_counts[url]
+
 class User:
 	def __init__(self):
 		self.feeds = set()
@@ -66,7 +88,7 @@ class User:
 		if self.last_active is None or self.last_active < mtime:
 			self.last_active = mtime
 		self.n_feeds += 1
-		self.n_implementations += len(feed.implementations)
+		self.n_implementations += count_impls(feed.url)
 	
 	def as_xml(self):
 		root = ET.Element('user')
