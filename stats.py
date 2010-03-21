@@ -26,6 +26,12 @@ aliases = {
 		'39AD3DDE2B988623D7F868591C319390658A683A' : 'D30B76E435BD65448F2A57C7B8E1967CBF45481E',
 }
 
+reverse_aliases = {}	# user ID -> list of their other keys
+for new, original in aliases.iteritems():
+	if original not in reverse_aliases:
+		reverse_aliases[original] = []
+	reverse_aliases[original].append(new)
+
 # Feeds with these keys must not be mirrored
 test_keys = set()
 test_keys.add('5E22F6A13A76F396AC68B5F29B1F5D7F9721DA90')
@@ -98,7 +104,7 @@ class User:
 		else:
 			self.n_inactive += 1
 	
-	def as_xml(self):
+	def as_xml(self, user_keys):
 		root = ET.Element('user')
 
 		name = ET.SubElement(root, 'name')
@@ -117,6 +123,13 @@ class User:
 		if self.n_inactive:
 			stats.attrib['inactive_feeds'] = str(self.n_inactive)
 		stats.attrib['karma'] = str(self.get_karma())
+
+		keys = ET.SubElement(root, 'keys')
+		for key in user_keys:
+			key_elem = ET.SubElement(keys, 'key')
+			key_elem.attrib['name'] = key.get_short_name()
+			key_elem.attrib['fingerprint'] = key.fingerprint
+			key_elem.attrib['keyid'] = key.fingerprint[-16:]
 
 		return ET.ElementTree(root)
 
@@ -183,7 +196,7 @@ class Stats:
 	
 	def write_summary(self, topdir):
 		names = []
-		keys = gpg.load_keys(self.users.keys())
+		keys = gpg.load_keys(self.users.keys() + aliases.keys())
 		top_users = []
 		for fingerprint, user in self.users.iteritems():
 			user.key = keys[fingerprint]
@@ -196,7 +209,9 @@ class Stats:
 		for name, fingerprint in sorted(names):
 			user = self.users[fingerprint]
 			user_dir = ensure_dirs(os.path.join(topdir, 'users', fingerprint))
-			user_xml = user.as_xml()
+
+			user_keys = [fingerprint] + reverse_aliases.get(fingerprint, [])
+			user_xml = user.as_xml([keys[k] for k in user_keys])
 			write_if_changed(user_xml, os.path.join(user_dir, 'user.xml'))
 			top_users.append((user.get_karma(), user))
 
