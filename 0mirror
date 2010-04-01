@@ -69,6 +69,8 @@ if not site_address.endswith('/'):
 # Where we try if the primary site fails
 my_mirror = site_config.get('fetching', 'upstream_mirror') or None
 
+n_feeds_to_update = int(site_config.get('fetching', 'n_feeds_to_update'))
+
 public_dir = args[0]
 
 feed_file = os.path.join(public_dir, 'feed-list')
@@ -168,6 +170,13 @@ def load_feed(url):
 			return feed
 	return None
 
+def load_feeds(feed_uris):
+	feeds = {}
+
+	for feed_url in feed_uris:
+		feeds[feed_url] = load_feed(feed_url)
+	return feeds
+
 feed = None
 try:
 	stats = Stats()
@@ -186,35 +195,53 @@ try:
 
 	known_set = feed_set | inactive_set
 
+	stale_feeds = []	# [(last-checked, feed)]
+
 	handler = NonInteractiveHandler()
+	p = policy.Policy("http://localhost/dummy", handler)
+	p.fetcher.feed_mirror = my_mirror
+
+	feeds = load_feeds(feed_uris)
+
+	def last_checked(feed):
+		last_check_attempt = iface_cache.get_last_check_attempt(feed.url)
+		if not last_check_attempt:
+			return feed.last_checked
+		return max(feed.last_checked or 0, last_check_attempt)
+
+	# List all the feeds, starting with the most stale
+	stale_feeds = [(last_checked(feed), feed) for feed in feeds.values()]
+	stale_feeds.sort()
+
+	# Update the first few feeds in the list
+	stale_feeds = stale_feeds[:n_feeds_to_update]
+	for last_check, feed in stale_feeds:
+		if last_check > 0:
+			ctime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(last_check))
+			print "Feed %s last checked %s; updating..." % (feed.url, ctime_str)
+		else:
+			print "Feed %s is new; fetching..." % feed.url
+
+		iface_cache.mark_as_checking(feed.url)
+		blocker = p.fetcher.download_and_import_feed(feed.url, iface_cache)
+		try:
+			handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
+		except Exception, ex:
+			add_warning("Error fetching '%s': %s" % (feed.url, ex))
+			continue
+		# Reload
+		feeds[feed.url] = load_feed(feed.url)
+
 	for feed_url in feed_uris:
 		info("Processing feed '%s'", feed_url)
+		feed = feeds[feed_url]
+		if not feed:
+			# Error during download?
+			add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
+			continue
+
 		feed_dir = os.path.join(public_dir, get_feed_dir(feed_url))
 		ensure_dirs(feed_dir)
-
-		#print "Updating", feed_url
-		p = policy.Policy(feed_url, handler)
-		p.fetcher.feed_mirror = my_mirror
-		feed = load_feed(feed_url)
-		if p.is_stale(feed):
-			if feed and feed.last_modified:
-				ctime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(feed.last_checked))
-				print "Feed %s last checked %s; updating..." % (feed_url, ctime_str)
-			else:
-				print "Feed %s is new; fetching..." % feed_url
-			blocker = p.fetcher.download_and_import_feed(feed_url, iface_cache)
-			try:
-				handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
-			except Exception, ex:
-				add_warning("Error fetching '%s': %s" % (feed_url, ex))
-				continue
-			# Reload
-			feed = load_feed(feed_url)
-			if not feed:
-				# Error during download?
-				add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
-				continue
-		feeds.append(feed)
 
 		cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(feed.url))
 		assert cached is not None
@@ -311,7 +338,7 @@ try:
 			       updated = format_date(time.time()),
 			       summary = summary.documentElement)
 
-	latest_feeds = [(feed.last_modified, feed) for feed in feeds]
+	latest_feeds = [(feed.last_modified, feed) for feed in feeds.values()]
 	latest_feeds.sort()
 	latest_feeds = reversed(latest_feeds[-16:])
 	for date, feed in latest_feeds:
