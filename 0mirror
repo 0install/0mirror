@@ -21,16 +21,7 @@ from support import format_date, get_feed_dir, ensure_dirs
 
 # Site configuration!
 
-site_config = RawConfigParser()
-site_config.read('0mirror.ini')
-
-site_address = site_config.get('site', 'address') # e.g. "http://localhost/0mirror"
-if not site_address.endswith('/'):
-	site_address += '/'
-
-# Where we try if the primary site fails
-my_mirror = site_config.get('fetching', 'upstream_mirror') or None
-
+site_config_file = os.path.abspath('0mirror.ini')
 FEED_TIMEOUT = 60	# Seconds to wait before giving up on a feed download
 
 version = '0.1'
@@ -62,6 +53,22 @@ if options.verbose:
 if len(args) != 1:
 	parser.print_help()
 	sys.exit(1)
+
+if not os.path.exists(site_config_file):
+	print >>sys.stderr, "Configuration file '%s' not found!" % site_config_file
+	sys.exit(1)
+print "Reading configuration from", site_config_file
+
+site_config = RawConfigParser()
+site_config.read(site_config_file)
+
+site_address = site_config.get('site', 'address') # e.g. "http://localhost/0mirror"
+if not site_address.endswith('/'):
+	site_address += '/'
+
+# Where we try if the primary site fails
+my_mirror = site_config.get('fetching', 'upstream_mirror') or None
+
 public_dir = args[0]
 
 feed_file = os.path.join(public_dir, 'feed-list')
