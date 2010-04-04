@@ -149,6 +149,12 @@ news_feed = AtomFeed(title = "Zero Install News Feed",
 
 fake_distro = distro.Distribution()
 
+class DummyFeed:
+	last_checked = 0
+	last_modified = 0
+	def __init__(self, url):
+		self.url = url
+
 def load_feed(url):
 	cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(url))
 	if cached:
@@ -168,7 +174,7 @@ def load_feed(url):
 					feed.last_checked = int(last_checked)
 
 			return feed
-	return None
+	return DummyFeed(url)
 
 def load_feeds(feed_uris):
 	feeds = {}
@@ -235,7 +241,7 @@ try:
 	for feed_url in feed_uris:
 		info("Processing feed '%s'", feed_url)
 		feed = feeds[feed_url]
-		if not feed:
+		if isinstance(feed, DummyFeed):
 			# Error during download?
 			add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
 			continue
