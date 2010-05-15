@@ -185,7 +185,7 @@ class Stats:
 				signer.attrib["date"] = format_date(sig.get_timestamp())
 			else:
 				signer = ET.SubElement(metadata, "signer")
-				signer.attrib["error"] = str(sig)
+				signer.attrib["error"] = unicode(sig)
 
 		domain = trust.domain_from_url(feed.url)
 		if domain not in self.sites:
