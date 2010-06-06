@@ -24,5 +24,8 @@ backup.</description>
       <version not-before="0.44"/>
       <environment insert="" mode="prepend" name="PYTHONPATH"/>
     </requires>
+    <requires interface='http://repo.roscidus.com/security/gnupg'>
+      <environment insert="bin" mode="prepend" name="PATH"/>
+    </requires>
   </group>
 </interface>
