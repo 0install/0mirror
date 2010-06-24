@@ -147,8 +147,6 @@ news_feed = AtomFeed(title = "Zero Install News Feed",
 			updated = now,
 			author = "0mirror")
 
-fake_distro = distro.Distribution()
-
 class DummyFeed:
 	last_checked = 0
 	last_modified = 0
@@ -160,7 +158,7 @@ def load_feed(url):
 	if cached:
 		with open(cached) as stream:
 			root = qdom.parse(stream)
-			feed = model.ZeroInstallFeed(root, None, fake_distro)
+			feed = model.ZeroInstallFeed(root, None)
 			feed.last_modified = int(os.stat(cached).st_mtime)
 
 			# We don't currently have a clean way to get the last checked time using
