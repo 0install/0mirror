@@ -267,7 +267,7 @@ try:
 		for impl in feed.implementations.values():
 			for dep in impl.requires:
 				if dep.interface not in known_set:
-					add_warning("Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), feed.get_name(), dep.interface))
+					add_warning("Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), feed.url, dep.interface))
 					break
 			else:
 				continue
