@@ -218,7 +218,7 @@ try:
 	stale_feeds.sort()
 
 	# If we've got some completely new feeds, update all of them now
-	while n_feeds_to_update < len(stale_feeds) and stale_feeds[n_feeds_to_update - 1][0] is 0:
+	while n_feeds_to_update < len(stale_feeds) and stale_feeds[n_feeds_to_update - 1][0] in (0, None):
 		n_feeds_to_update += 1
 
 	# Update the first few feeds in the list
