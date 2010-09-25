@@ -154,25 +154,7 @@ class DummyFeed:
 		self.url = url
 
 def load_feed(url):
-	cached = basedir.load_first_cache(namespaces.config_site, 'interfaces', model.escape(url))
-	if cached:
-		with open(cached) as stream:
-			root = qdom.parse(stream)
-			feed = model.ZeroInstallFeed(root, None)
-			feed.last_modified = int(os.stat(cached).st_mtime)
-
-			# We don't currently have a clean way to get the last checked time using
-			# the library...
-			user = basedir.load_first_config(namespaces.config_site, 'injector',
-							   'user_overrides', model.escape(url))
-			if user:
-				root = qdom.parse(file(user))
-				last_checked = root.getAttribute('last-checked')
-				if last_checked:
-					feed.last_checked = int(last_checked)
-
-			return feed
-	return DummyFeed(url)
+	return iface_cache.get_feed(url)
 
 def load_feeds(feed_uris):
 	feeds = {}
@@ -208,13 +190,17 @@ try:
 	feeds = load_feeds(feed_uris)
 
 	def last_checked(feed):
+		if feed is None:
+			# If we've never downloaded this feed, just keep trying (ignore last_check_attempt)
+			return 0
+		# Use the latest of the last successful check or the last failed check
 		last_check_attempt = iface_cache.get_last_check_attempt(feed.url)
 		if not last_check_attempt:
 			return feed.last_checked
 		return max(feed.last_checked or 0, last_check_attempt)
 
 	# List all the feeds, starting with the most stale
-	stale_feeds = [(last_checked(feed), feed) for feed in feeds.values()]
+	stale_feeds = [(last_checked(feed), url, feed) for url, feed in feeds.items()]
 	stale_feeds.sort()
 
 	# If we've got some completely new feeds, update all of them now
@@ -223,27 +209,28 @@ try:
 
 	# Update the first few feeds in the list
 	stale_feeds = stale_feeds[:n_feeds_to_update]
-	for last_check, feed in stale_feeds:
+	for last_check, feed_url, feed in stale_feeds:
 		if last_check > 0:
 			ctime_str = time.strftime('%Y-%m-%d_%H:%M', time.gmtime(last_check))
-			print "Feed %s last checked %s; updating..." % (feed.url, ctime_str)
+			print "Feed %s last checked %s; updating..." % (feed_url, ctime_str)
 		else:
-			print "Feed %s is new; fetching..." % feed.url
+			print "Feed %s is new; fetching..." % feed_url
 
-		iface_cache.mark_as_checking(feed.url)
-		blocker = p.fetcher.download_and_import_feed(feed.url, iface_cache)
+		iface_cache.mark_as_checking(feed_url)
+		blocker = p.fetcher.download_and_import_feed(feed_url, iface_cache)
 		try:
 			handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
 		except Exception, ex:
-			add_warning("Error fetching '%s': %s" % (feed.url, ex))
+			add_warning("Error fetching '%s': %s" % (feed_url, ex))
 			continue
 		# Reload
-		feeds[feed.url] = load_feed(feed.url)
+		feed = feeds[feed_url] = load_feed(feed_url)
+		#assert feed.last_checked, feed
 
 	for feed_url in feed_uris:
 		info("Processing feed '%s'", feed_url)
 		feed = feeds[feed_url]
-		if isinstance(feed, DummyFeed):
+		if feed is None:
 			# Error during download?
 			add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
 			continue
