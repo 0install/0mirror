@@ -7,6 +7,7 @@ import os, sys, time, shutil, subprocess, signal
 from ConfigParser import RawConfigParser
 from logging import info, debug, warn
 from xml.dom import minidom
+import codecs
 
 signal.alarm(10 * 60)		# Abort after 10 minutes
 
@@ -348,7 +349,7 @@ try:
 			       updated = format_date(date),
 			       summary = summary.documentElement)
 
-	news_stream = file(os.path.join(public_dir, 'news-feed.xml'), 'w')
+	news_stream = codecs.open(os.path.join(public_dir, 'news-feed.xml'), 'w', encoding = 'utf-8')
 	news_feed.save(news_stream)
 	news_stream.close()
 
