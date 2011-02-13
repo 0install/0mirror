@@ -334,7 +334,7 @@ try:
 			       updated = format_date(time.time()),
 			       summary = summary.documentElement)
 
-	latest_feeds = [(feed.last_modified, feed) for feed in feeds.values()]
+	latest_feeds = [(feed.last_modified, feed) for feed in feeds.values() if feed]
 	latest_feeds.sort()
 	latest_feeds = reversed(latest_feeds[-16:])
 	for date, feed in latest_feeds:
