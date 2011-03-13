@@ -186,7 +186,7 @@ try:
 
 	handler = NonInteractiveHandler()
 	p = policy.Policy("http://localhost/dummy", handler)
-	p.fetcher.feed_mirror = my_mirror
+	p.config.feed_mirror = my_mirror
 
 	feeds = load_feeds(feed_uris)
 

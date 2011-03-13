@@ -21,7 +21,7 @@ backup.</description>
   <group license="OSI Approved :: GNU General Public License (GPL)" main="0mirror">
     <implementation id="." version="0.1-pre"/>
     <requires interface="http://0install.net/2007/interfaces/ZeroInstall.xml">
-      <version not-before="0.49"/>
+      <version not-before="0.53"/>
       <environment insert="" mode="prepend" name="PYTHONPATH"/>
     </requires>
     <requires interface='http://repo.roscidus.com/security/gnupg'>
