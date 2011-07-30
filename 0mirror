@@ -86,16 +86,6 @@ summary_xml = """
 </summary>
 """
 
-unconfirmed_keys_xml = """
-<summary type='xhtml'>
-  <div xmlns="http://www.w3.org/1999/xhtml">
-    New keys awaiting confirmation:
-    <dl>
-    </dl>
-  </div>
-</summary>
-"""
-
 warnings_xml = """
 <summary type='xhtml'>
   <div xmlns="http://www.w3.org/1999/xhtml">
@@ -306,23 +296,11 @@ try:
 
 	stats.write_summary(public_dir)
 
-	if unconfirmed_keys:
-		summary = minidom.parseString(unconfirmed_keys_xml)
-		dl = summary.getElementsByTagNameNS("http://www.w3.org/1999/xhtml", "dl")[0]
-		for pending_feed in unconfirmed_keys:
-			dt = summary.createElementNS("http://www.w3.org/1999/xhtml", "dt")
-			dl.appendChild(dt)
-			dt.appendChild(summary.createTextNode(pending_feed.url))
-
-			dd = summary.createElementNS("http://www.w3.org/1999/xhtml", "dd")
-			dl.appendChild(dd)
-			dd.appendChild(summary.createTextNode(str(pending_feed.sigs[0].fingerprint)))
-
-		news_feed.add_entry(title = "Keys awaiting confirmation",
-			       link = site_address + "/news-feed.xml",
-			       entry_id = "unconfirmed-keys",
-			       updated = format_date(time.time()),
-			       summary = summary.documentElement)
+	for pending_feed in unconfirmed_keys:
+		add_warning("Key awaiting confirmation",
+			    "Feed: {feed}, Fingerprint: {fingerprint}".format(
+				feed = pending_feed.url,
+				fingerprint = pending_feed.sigs[0].fingerprint))
 
 	if warnings:
 		i = 0
