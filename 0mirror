@@ -76,6 +76,7 @@ public_dir = args[0]
 
 feed_file = os.path.join(public_dir, 'feed-list')
 ignore_file = os.path.join(public_dir, 'ignore-list')
+warnings_file = os.path.join(public_dir, 'warnings.xml')
 
 summary_xml = """
 <summary type='xhtml'>
@@ -98,8 +99,6 @@ unconfirmed_keys_xml = """
 warnings_xml = """
 <summary type='xhtml'>
   <div xmlns="http://www.w3.org/1999/xhtml">
-    <ul>
-    </ul>
   </div>
 </summary>
 """
@@ -121,9 +120,9 @@ def wait_with_timeout(delay, blocker):
 		raise Exception("Timeout (waited %d seconds)" % delay)
 
 warnings = []
-def add_warning(msg):
-	warn(msg)
-	warnings.append(msg)
+def add_warning(title, msg):
+	warn("%s: %s", title, msg)
+	warnings.append((title, msg))
 
 key_dir = os.path.join(public_dir, 'keys')
 ensure_dirs(key_dir)
@@ -147,6 +146,11 @@ news_feed = AtomFeed(title = "Zero Install News Feed",
 			link = site_address + "/news-feed.xml",
 			updated = now,
 			author = "0mirror")
+warnings_feed = AtomFeed(title = "0mirror Warnings Feed",
+			link = site_address + "/warnings.xml",
+			updated = now,
+			author = "0mirror",
+			source = warnings_file)
 
 class DummyFeed:
 	last_checked = 0
@@ -222,7 +226,7 @@ try:
 		try:
 			handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
 		except Exception, ex:
-			add_warning("Error fetching '%s': %s" % (feed_url, ex))
+			add_warning("Error fetching feed", "Error fetching '%s': %s" % (feed_url, ex))
 			continue
 		# Reload
 		feed = feeds[feed_url] = load_feed(feed_url)
@@ -233,7 +237,7 @@ try:
 		feed = feeds[feed_url]
 		if feed is None:
 			# Error during download?
-			add_warning("Attempted to fetch '%s', but still not cached" % feed_url)
+			add_warning("Fetch failed", "Attempted to fetch '%s', but still not cached" % feed_url)
 			continue
 
 		feed_dir = os.path.join(public_dir, get_feed_dir(feed_url))
@@ -247,13 +251,13 @@ try:
 				if subfeed.uri.startswith('/'):
 					continue
 				if subfeed.uri not in ignore_set:
-					add_warning("WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, feed.get_name()))
+					add_warning("Missing subfeed", "WARNING: Subfeed %s of %s not in feeds list" % (subfeed.uri, feed.get_name()))
 
 		# Check dependencies
 		for impl in feed.implementations.values():
 			for dep in impl.requires:
 				if dep.interface not in known_set:
-					add_warning("Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), feed.url, dep.interface))
+					add_warning("Missing dependency", "Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), feed.url, dep.interface))
 					break
 			else:
 				continue
@@ -283,7 +287,7 @@ try:
 			if isinstance(x, gpg.ValidSig):
 				ensure_key(x.fingerprint)
 			else:
-				add_warning("Signature problem: %s" % x)
+				add_warning("Signature problem", x)
 
 		shutil.copyfile(cached, version_path)
 		latest_new = latest + '.new'
@@ -321,18 +325,20 @@ try:
 			       summary = summary.documentElement)
 
 	if warnings:
-		summary = minidom.parseString(warnings_xml)
-		ul = summary.getElementsByTagNameNS("http://www.w3.org/1999/xhtml", "ul")[0]
-		for warning in warnings:
-			li = summary.createElementNS("http://www.w3.org/1999/xhtml", "li")
-			ul.appendChild(li)
-			li.appendChild(summary.createTextNode(warning))
-
-		news_feed.add_entry(title = "Warnings",
-			       link = site_address + "/news-feed.xml",
-			       entry_id = "warnings",
-			       updated = format_date(time.time()),
-			       summary = summary.documentElement)
+		i = 0
+		for (title, warning) in warnings:
+			summary = minidom.parseString(warnings_xml)
+			div = summary.getElementsByTagNameNS("http://www.w3.org/1999/xhtml", "div")[0]
+			div.appendChild(summary.createTextNode(warning))
+			warnings_feed.add_entry(title = title,
+				       link = site_address + "/warnings.xml",
+				       entry_id = "warning-" + now + '-%d' % i,
+				       updated = now,
+				       summary = summary.documentElement)
+			i += 1
+		warnings_feed.limit(20)
+		with open(warnings_file, 'w') as stream:
+			warnings_feed.save(stream)
 
 	latest_feeds = [(feed.last_modified, feed) for feed in feeds.values() if feed]
 	latest_feeds.sort()

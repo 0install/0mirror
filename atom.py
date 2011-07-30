@@ -1,6 +1,7 @@
 # Copyright (C) 2008, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
+import os
 from xml.dom import minidom, Node
 
 empty_atom_feed_xml = """<?xml version="1.0" encoding="utf-8"?>
@@ -56,8 +57,12 @@ def remove(doc, path):
 	node.parentNode.removeChild(node)
 
 class AtomFeed:
-	def __init__(self, title, link, updated, author, feed_id = None):
-		self.doc = minidom.parseString(empty_atom_feed_xml)
+	def __init__(self, title, link, updated, author, feed_id = None, source = None):
+		if source is None or not os.path.exists(source):
+			self.doc = minidom.parseString(empty_atom_feed_xml)
+		else:
+			with open(source) as stream:
+				self.doc = minidom.parse(stream)
 
 		def set(path, value): set_element(self.doc, path, value)
 
@@ -69,6 +74,12 @@ class AtomFeed:
 	
 	def save(self, stream):
 		self.doc.writexml(stream)
+	
+	def limit(self, n):
+		root = self.doc.documentElement
+		while len(root.childNodes) > n:
+			print "removing..."
+			root.removeChild(root.childNodes[0])
 
 	def add_entry(self, title, link, entry_id, updated, summary = None, extra_links = {}):
 		entry_doc = minidom.parseString(empty_element_xml)
