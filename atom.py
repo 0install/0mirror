@@ -1,7 +1,7 @@
 # Copyright (C) 2008, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
-import os
+import os, sys
 from xml.dom import minidom, Node
 
 empty_atom_feed_xml = """<?xml version="1.0" encoding="utf-8"?>
@@ -37,6 +37,7 @@ def set_element(doc, path, value):
 				node = child
 				break
 		else:
+			#doc.toxml(sys.stderr)
 			raise Exception("Not found: %s (in %s)" % (element, path))
 	if not isinstance(value, Node):
 		value = doc.createTextNode(value)
@@ -78,8 +79,14 @@ class AtomFeed:
 	def limit(self, n):
 		root = self.doc.documentElement
 		while len(root.childNodes) > n:
-			print "removing..."
-			root.removeChild(root.childNodes[0])
+			for child in root.childNodes:
+				if child.localName == 'entry':
+					print "removing..."
+					root.removeChild(child)
+					break
+			else:
+				print >>sys.stderr, "Can't find an entry to remove!"
+				break
 
 	def add_entry(self, title, link, entry_id, updated, summary = None, extra_links = {}):
 		entry_doc = minidom.parseString(empty_element_xml)
