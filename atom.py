@@ -41,6 +41,8 @@ def set_element(doc, path, value):
 			raise Exception("Not found: %s (in %s)" % (element, path))
 	if not isinstance(value, Node):
 		value = doc.createTextNode(value)
+	for child in node.childNodes:
+		node.removeChild(child)
 	node.appendChild(value)
 
 def remove(doc, path):
@@ -59,19 +61,20 @@ def remove(doc, path):
 
 class AtomFeed:
 	def __init__(self, title, link, updated, author, feed_id = None, source = None):
+		def set(path, value): set_element(self.doc, path, value)
+
 		if source is None or not os.path.exists(source):
 			self.doc = minidom.parseString(empty_atom_feed_xml)
+
+			set("feed/title", title)
+			set("feed/link/@href", link)
+			set("feed/author/name", author)
+			set("feed/id", feed_id or link)
 		else:
 			with open(source) as stream:
 				self.doc = minidom.parse(stream)
 
-		def set(path, value): set_element(self.doc, path, value)
-
-		set("feed/title", title)
-		set("feed/link/@href", link)
 		set("feed/updated", updated)
-		set("feed/author/name", author)
-		set("feed/id", feed_id or link)
 	
 	def save(self, stream):
 		self.doc.writexml(stream)
