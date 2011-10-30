@@ -3,6 +3,7 @@
 
 import os, sys
 from xml.dom import minidom, Node
+from xmltools import nodesEqual
 
 empty_atom_feed_xml = """<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -45,6 +46,8 @@ def set_element(doc, path, value):
 		node.removeChild(child)
 	node.appendChild(value)
 
+	return node
+
 def remove(doc, path):
 	node = doc
 	for element in path.split('/'):
@@ -58,6 +61,16 @@ def remove(doc, path):
 		else:
 			raise Exception("Not found: %s (in %s)" % (element, path))
 	node.parentNode.removeChild(node)
+
+def is_duplicate(doc, title, summary):
+	for entry in doc.documentElement.childNodes:
+		if entry.localName != 'entry': continue
+		values = {}
+		for item in entry.childNodes:
+			values[item.localName] = item
+		if nodesEqual(values['title'], title) and nodesEqual(values['summary'], summary):
+			return True
+	return False
 
 class AtomFeed:
 	def __init__(self, title, link, updated, author, feed_id = None, source = None):
@@ -94,9 +107,9 @@ class AtomFeed:
 	def add_entry(self, title, link, entry_id, updated, summary = None, extra_links = {}):
 		entry_doc = minidom.parseString(empty_element_xml)
 
-		def set(path, value): set_element(entry_doc, path, value)
+		def set(path, value): return set_element(entry_doc, path, value)
 
-		set("entry/title", title)
+		title_node = set("entry/title", title)
 		set("entry/link/@href", link)
 		set("entry/id", entry_id)
 		set("entry/updated", updated)
@@ -110,6 +123,9 @@ class AtomFeed:
 			entry_doc.documentElement.appendChild(element)
 
 		entry = self.doc.importNode(entry_doc.documentElement, deep = True)
+
+		if is_duplicate(self.doc, title_node, summary): return
+
 		self.doc.documentElement.appendChild(entry)
 
 if __name__ == '__main__':
@@ -119,11 +135,28 @@ if __name__ == '__main__':
 			author = "John Doe",
 			feed_id = "urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6")
 
+	summary_xml = """
+	<summary type='xhtml'>
+	  <div xmlns="http://www.w3.org/1999/xhtml">
+	    <a href=""/> - <span/>
+	  </div>
+	</summary>
+	"""
+
+	summary = minidom.parseString(summary_xml)
+
 	feed.add_entry(title = "Atom-Powered Robots Run Amok",
 		       link = "http://example.org/2003/12/13/atom03",
 		       entry_id = "urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
 		       updated = "2003-12-13T18:30:02Z",
-		       summary = "Some text.")
+		       summary = summary.documentElement)
+
+	summary2 = minidom.parseString(summary_xml)
+	feed.add_entry(title = "Atom-Powered Robots Run Amok",
+		       link = "http://example.org/2003/12/13/atom03",
+		       entry_id = "urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
+		       updated = "2003-12-13T18:30:02Z",
+		       summary = summary2.documentElement)
 
 	import sys
 	feed.save(sys.stdout)
