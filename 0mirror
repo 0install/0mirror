@@ -105,7 +105,7 @@ class NonInteractiveHandler(handler.Handler):
 def wait_with_timeout(delay, blocker):
 	timeout = tasks.TimeoutBlocker(FEED_TIMEOUT, 'Mirror timeout')
 	yield timeout, blocker
-	tasks.check(timeout, blocker)
+	tasks.check([timeout, blocker])
 	if not blocker.happened:
 		raise Exception("Timeout (waited %d seconds)" % delay)
 
