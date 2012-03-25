@@ -13,7 +13,7 @@ signal.alarm(10 * 60)		# Abort after 10 minutes
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import model, namespaces, policy, handler, gpg, handler, qdom, distro
+from zeroinstall.injector import model, namespaces, policy, gpg, handler
 from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
@@ -141,12 +141,6 @@ warnings_feed = AtomFeed(title = "0mirror Warnings Feed",
 			updated = now,
 			author = "0mirror",
 			source = warnings_file)
-
-class DummyFeed:
-	last_checked = 0
-	last_modified = 0
-	def __init__(self, url):
-		self.url = url
 
 def load_feed(url):
 	return iface_cache.get_feed(url)

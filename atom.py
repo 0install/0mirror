@@ -158,6 +158,5 @@ if __name__ == '__main__':
 		       updated = "2003-12-13T18:30:02Z",
 		       summary = summary2.documentElement)
 
-	import sys
 	feed.save(sys.stdout)
 	print

@@ -111,7 +111,6 @@ class User:
 
 		name = ET.SubElement(root, 'name')
 		name.text = self.key.get_short_name()
-		import codecs
 
 		feeds = ET.SubElement(root, 'feeds')
 
