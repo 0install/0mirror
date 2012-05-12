@@ -22,6 +22,6 @@ def get_feed_dir(feed):
 	domain, rest = rest.split('/', 1)
 	assert scheme in ('http', 'https', 'ftp')	# Just to check for mal-formed lines; add more as needed
 	for x in [scheme, domain, rest]:
-		if not x or x.startswith(','):
+		if not x or x.startswith('.'):
 			raise SafeException("Invalid URL '%s'" % feed)
 	return os.path.join('feeds', scheme, domain, escape_slashes(rest))
