@@ -13,7 +13,7 @@ signal.alarm(10 * 60)		# Abort after 10 minutes
 
 from zeroinstall import SafeException
 from zeroinstall.injector.iface_cache import iface_cache
-from zeroinstall.injector import model, namespaces, policy, gpg, handler
+from zeroinstall.injector import model, namespaces, config, gpg, handler
 from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
@@ -173,8 +173,8 @@ try:
 	stale_feeds = []	# [(last-checked, feed)]
 
 	handler = NonInteractiveHandler()
-	p = policy.Policy("http://localhost/dummy", handler)
-	p.config.feed_mirror = my_mirror
+	c = config.load_config()
+	c.feed_mirror = my_mirror
 
 	feeds = load_feeds(feed_uris)
 
@@ -206,7 +206,7 @@ try:
 			print "Feed %s is new; fetching..." % feed_url
 
 		iface_cache.mark_as_checking(feed_url)
-		blocker = p.fetcher.download_and_import_feed(feed_url, iface_cache)
+		blocker = c.fetcher.download_and_import_feed(feed_url, iface_cache)
 		try:
 			handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
 		except Exception, ex:
