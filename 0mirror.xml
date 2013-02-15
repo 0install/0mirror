@@ -19,6 +19,12 @@ backup.</description>
   <category>Network</category>
 
   <group license="OSI Approved :: GNU General Public License (GPL)" main="0mirror">
+    <command name="run" path="0mirror">
+      <runner interface="http://repo.roscidus.com/python/python">
+        <version before="3"/>
+      </runner>
+    </command>
+
     <implementation id="." version="0.1-pre"/>
     <requires interface="http://0install.net/2007/interfaces/ZeroInstall.xml">
       <version not-before="0.53"/>
