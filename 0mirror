@@ -3,7 +3,7 @@
 # See the COPYING file for details, or visit http://0install.net.
 
 from optparse import OptionParser
-import os, sys, time, shutil, subprocess, signal
+import os, sys, time, shutil, subprocess, signal, logging
 from ConfigParser import RawConfigParser
 from logging import info, debug, warn
 from xml.dom import minidom
@@ -44,7 +44,6 @@ if options.version:
 	sys.exit(0)
 
 if options.verbose:
-	import logging
 	logger = logging.getLogger()
 	if options.verbose == 1:
 		logger.setLevel(logging.INFO)
@@ -146,11 +145,15 @@ def load_feed(url):
 	return iface_cache.get_feed(url)
 
 def load_feeds(feed_uris):
-	feeds = {}
+	logging.getLogger("0install").setLevel(logging.ERROR)
+	try:
+		feeds = {}
 
-	for feed_url in feed_uris:
-		feeds[feed_url] = load_feed(feed_url)
-	return feeds
+		for feed_url in feed_uris:
+			feeds[feed_url] = load_feed(feed_url)
+		return feeds
+	finally:
+		logging.getLogger("0install").setLevel(logging.WARNING)
 
 feed = None
 try:
