@@ -97,7 +97,7 @@ class AtomFeed:
 		while len(root.childNodes) > n:
 			for child in root.childNodes:
 				if child.localName == 'entry':
-					print "removing..."
+					print "removing old Atom feed entry..."
 					root.removeChild(child)
 					break
 			else:

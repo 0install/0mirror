@@ -1,7 +1,7 @@
 # Copyright (C) 2010, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
-import os, time, codecs
+import os, time, codecs, json
 import xml.etree.ElementTree as ET
 
 from zeroinstall.injector.iface_cache import iface_cache
@@ -97,7 +97,7 @@ class User:
 	def add_feed(self, feed, sig, active):
 		assert feed not in self.feeds, feed
 		self.feeds[feed] = active
-		mtime = sig.get_timestamp()
+		mtime = sig["date"]
 		if self.last_active is None or self.last_active < mtime:
 			self.last_active = mtime
 		if active:
@@ -155,6 +155,48 @@ def export_sites(tuples):
 		elem.attrib["site-path"] = 'sites/site-%s.html' % domain
 	return ET.ElementTree(root)
 
+
+sig_file = 'sig.cache'
+
+class SigCache:
+	"""Remembers the signing key of each feed, so we don't have to keep running GPG all the time."""
+	def __init__(self):
+		if os.path.exists(sig_file):
+			with open(sig_file, 'rt') as stream:
+				self.url_to_sig_data = json.load(stream)
+		else:
+			self.url_to_sig_data = {}
+
+	def get(self, url):
+		if url not in self.url_to_sig_data:
+			sigs = iface_cache.get_cached_signatures(url)
+			sig_data = []
+
+			for sig in sigs or []:
+				if isinstance(sig, gpg.ValidSig):
+					sig_data.append({
+						"fingerprint": sig.fingerprint,
+						"date": sig.get_timestamp()
+					})
+				else:
+					sig_data.append({
+						"error": unicode(sig)
+					})
+			self.url_to_sig_data[url] = sig_data
+		return self.url_to_sig_data[url]
+
+	def update(self, url):
+		if url in self.url_to_sig_data:
+			del self.url_to_sig_data[url]
+		self.get(url)
+
+	def save(self):
+		with open(sig_file + '.new', 'wt') as stream:
+			json.dump(self.url_to_sig_data, stream)
+		os.rename(sig_file + '.new', sig_file)
+
+sig_cache = SigCache()
+
 """Keep track of some statistics."""
 class Stats:
 	def __init__(self):
@@ -162,18 +204,22 @@ class Stats:
 		self.sites = {}		# Domain -> [Feed]
 		self.feeds = []
 		self.active = {}	# Feed -> bool
-	
+
 	def add_feed(self, feed, active):
 		self.active[feed] = active
 
 		metadata = ET.Element('metadata')
 		metadata.attrib["active"] = str(active)
 
-		sigs = iface_cache.get_cached_signatures(feed.url)
+		sig_data = sig_cache.get(feed.url)
 
-		for sig in sigs or []:
-			if isinstance(sig, gpg.ValidSig):
-				fingerprint = aliases.get(sig.fingerprint, sig.fingerprint)
+		for sig in sig_data:
+			fingerprint = sig.get("fingerprint")
+			if fingerprint is None:
+				signer = ET.SubElement(metadata, "signer")
+				signer.attrib["error"] = sig["error"]
+			else:
+				fingerprint = aliases.get(fingerprint, fingerprint)
 				assert fingerprint not in aliases, fingerprint
 				if active:
 					assert fingerprint not in test_keys, (fingerprint, feed)
@@ -183,10 +229,7 @@ class Stats:
 
 				signer = ET.SubElement(metadata, "signer")
 				signer.attrib["user"] = fingerprint
-				signer.attrib["date"] = format_date(sig.get_timestamp())
-			else:
-				signer = ET.SubElement(metadata, "signer")
-				signer.attrib["error"] = unicode(sig)
+				signer.attrib["date"] = format_date(sig["date"])
 
 		domain = trust.domain_from_url(feed.url)
 		if domain not in self.sites:
@@ -196,6 +239,8 @@ class Stats:
 		self.feeds.append((feed, metadata))
 	
 	def write_summary(self, topdir):
+		sig_cache.save()
+
 		names = []
 		keys = gpg.load_keys(self.users.keys() + aliases.keys())
 		top_users = []

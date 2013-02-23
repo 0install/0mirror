@@ -17,7 +17,7 @@ from zeroinstall.injector import model, namespaces, config, gpg, handler
 from zeroinstall.support import basedir, tasks
 
 from atom import AtomFeed, set_element
-from stats import Stats
+from stats import Stats, sig_cache
 from support import format_date, get_feed_dir, ensure_dirs
 
 missing_set = set()
@@ -283,6 +283,7 @@ try:
 			os.unlink(latest_new)
 		os.symlink(version_name, latest_new)
 		os.rename(latest_new, latest)
+		sig_cache.update(feed.url)
 		print "Updated %s to %s" % (feed, version_name)
 
 	feed = None
