@@ -20,6 +20,8 @@ from atom import AtomFeed, set_element
 from stats import Stats
 from support import format_date, get_feed_dir, ensure_dirs
 
+missing_set = set()
+
 # Site configuration!
 
 site_config_file = os.path.abspath('0mirror.ini')
@@ -243,9 +245,9 @@ try:
 		# Check dependencies
 		for impl in feed.implementations.values():
 			for dep in impl.requires:
-				if dep.interface not in known_set:
+				if dep.interface not in known_set and dep.interface not in missing_set:
 					add_warning("Missing dependency", "Version %s of %s depends on %s, but that isn't being mirrored!" % (impl.get_version(), feed.url, dep.interface))
-					break
+					missing_set.add(dep.interface)
 			else:
 				continue
 			break	# Once we've warned about one version, don't check any other versions
@@ -347,6 +349,10 @@ try:
 				if '/tests/' in feed: continue
 				print feed
 
+	if missing_set:
+		print "\nMissing feeds:"
+		for x in missing_set:
+			print x
 
 except KeyboardInterrupt, ex:
 	print >>sys.stderr, "Aborted at user's request"
