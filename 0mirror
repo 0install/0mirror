@@ -177,7 +177,6 @@ try:
 
 	stale_feeds = []	# [(last-checked, feed)]
 
-	handler = NonInteractiveHandler()
 	c = config.load_config()
 	c.feed_mirror = my_mirror
 
@@ -213,7 +212,7 @@ try:
 		iface_cache.mark_as_checking(feed_url)
 		blocker = c.fetcher.download_and_import_feed(feed_url, iface_cache)
 		try:
-			handler.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
+			tasks.wait_for_blocker(wait_with_timeout(FEED_TIMEOUT, blocker))
 		except Exception, ex:
 			add_warning("Error fetching feed", "Error fetching '%s': %s" % (feed_url, ex))
 			continue
