@@ -27,7 +27,7 @@ backup.</description>
 
     <implementation id="." version="0.1-pre"/>
     <requires interface="http://0install.net/2007/interfaces/ZeroInstall.xml">
-      <version not-before="0.53"/>
+      <version not-before="1.10"/>
       <environment insert="" mode="prepend" name="PYTHONPATH"/>
     </requires>
     <requires interface='http://repo.roscidus.com/security/gnupg'>

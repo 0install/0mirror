@@ -178,7 +178,7 @@ try:
 	stale_feeds = []	# [(last-checked, feed)]
 
 	c = config.load_config()
-	c.feed_mirror = my_mirror
+	c.mirror = my_mirror
 
 	feeds = load_feeds(feed_uris)
 
