@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2007, Thomas Leonard
+# Copyright (C) 2013, Thomas Leonard
 # See the COPYING file for details, or visit http://0install.net.
 
 from optparse import OptionParser
@@ -19,6 +19,7 @@ from zeroinstall.support import basedir, tasks
 from atom import AtomFeed, set_element
 from stats import Stats, sig_cache
 from support import format_date, get_feed_dir, ensure_dirs
+import index
 
 missing_set = set()
 
@@ -30,6 +31,7 @@ FEED_TIMEOUT = 60	# Seconds to wait before giving up on a feed download
 version = '0.1'
 
 parser = OptionParser(usage="usage: %prog [options] PUBLIC-DIR")
+parser.add_option("", "--reindex", help="index all feeds, not just new ones", action='store_true')
 parser.add_option("-v", "--verbose", help="more verbose output", action='count')
 parser.add_option("-V", "--version", help="display version information", action='store_true')
 
@@ -37,7 +39,7 @@ parser.add_option("-V", "--version", help="display version information", action=
 
 if options.version:
 	print "0mirror (zero-install) " + version
-	print "Copyright (C) 2010 Thomas Leonard"
+	print "Copyright (C) 2013 Thomas Leonard"
 	print "This program comes with ABSOLUTELY NO WARRANTY,"
 	print "to the extent permitted by law."
 	print "You may redistribute copies of this program"
@@ -78,6 +80,7 @@ public_dir = args[0]
 feed_file = os.path.join(public_dir, 'feed-list')
 ignore_file = os.path.join(public_dir, 'ignore-list')
 warnings_file = os.path.join(public_dir, 'warnings.xml')
+search_index_dir = os.path.join(public_dir, 'search-index')	# (doesn't need to be public, actually)
 
 summary_xml = """
 <summary type='xhtml'>
@@ -179,6 +182,7 @@ try:
 
 	c = config.load_config()
 	c.mirror = my_mirror
+	indexer = index.Indexer(c, search_index_dir)
 
 	feeds = load_feeds(feed_uris)
 
@@ -284,6 +288,7 @@ try:
 		os.symlink(version_name, latest_new)
 		os.rename(latest_new, latest)
 		sig_cache.update(feed.url)
+		if not options.reindex: indexer.update(feed_url)
 		print "Updated %s to %s" % (feed, version_name)
 
 	feed = None
@@ -292,6 +297,13 @@ try:
 		feed = load_feed(feed_url)
 		if feed and feed.last_modified:
 			stats.add_feed(feed, feed_url in feed_set)
+
+	if options.reindex:
+		for url in feed_set:
+			indexer.update(url)
+
+	# Commit search db (whether we indexed everything, or just the updated feeds)
+	indexer.commit()
 
 	stats.write_summary(public_dir)
 

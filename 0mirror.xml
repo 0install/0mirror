@@ -33,5 +33,6 @@ backup.</description>
     <requires interface='http://repo.roscidus.com/security/gnupg'>
       <environment insert="bin" mode="prepend" name="PATH"/>
     </requires>
+    <requires interface='http://repo.roscidus.com/python/whoosh'/>
   </group>
 </interface>
