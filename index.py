@@ -43,7 +43,9 @@ class Indexer:
 			logging.warning("%s not cached", url)
 			return
 
-		if feed.feed_for: return		# Skip sub-feeds
+		if feed.feed_for:
+			self.writer.delete_by_term('uri', unicode(url))
+			return		# Skip sub-feeds
 
 		name = feed.get_name()
 		summary = feed.summary
