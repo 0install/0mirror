@@ -17,7 +17,7 @@ from zeroinstall.injector.namespaces import XMLNS_IFACE
 sa = StemmingAnalyzer()
 schema = fields.Schema(
 		uri		= fields.ID(unique=True, stored=True),
-		name		= fields.TEXT(stored=True,field_boost=10.0),
+		name		= fields.TEXT(stored=True,field_boost=50.0),
 		summary		= fields.TEXT(stored=True, field_boost=5.0),
 		description	= fields.TEXT(analyzer=sa),
 		category	= fields.KEYWORD(stored=True),
