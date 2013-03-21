@@ -1,7 +1,4 @@
-#!/usr/bin/env python
-#
-# This is a stand-alone tool for querying the search index that 0mirror
-# builds when mirroring feeds.
+# Tool for querying the search index that 0mirror builds when mirroring feeds.
 #
 # Copyright (C) 2011, Anders F Bjorklund
 # Copyright (C) 2013, Thomas Leonard
@@ -17,33 +14,33 @@ from xml.sax.saxutils import escape, quoteattr
 
 import os, sys
 
-indexpath = os.path.expanduser("./search-index/")
+class Searcher:
+	def __init__(self, index_dir):
+		index = open_dir(index_dir)
+		self.searcher = index.searcher()
 
-index = open_dir(indexpath)
-searcher = index.searcher()
+		fields = ["name", "summary", "description"]
+		self.parser = MultifieldParser(fields, schema=index.schema)
 
-fields = ["name", "summary", "description"]
-parser = MultifieldParser(fields, schema=index.schema)
+	def query(self, query_string, out):
+		"""out should take unicode and encode it as necessary"""
+		query = self.parser.parse(unicode(query_string))
+		results = self.searcher.search(query)
+		max_score = results and max([result.score for result in results]) or 0.0
 
-args = sys.argv[1:]
-query = parser.parse(unicode(' '.join(args)))
+		out.write('<?xml version="1.0" ?>')
+		out.write("<results>")
+		for result in results:
+			uri = result["uri"]
+			name = result["name"]
+			summary = result.get("summary", "")
+			category = result.get("category", None)
 
-results = searcher.search(query)
-max_score = results and max([result.score for result in results]) or 0.0
+			s = 100.0 * result.score / max_score
 
-print '<?xml version="1.0" ?>'
-print "<results>"
-for result in results:
-	uri = result["uri"]
-	name = result["name"]
-	summary = "summary" in result and result["summary"] or ""
-	category = "category" in result and result["category"] or None
-
-	s = 100.0 * result.score / max_score
-
-	print "  <result uri=%s name=%s score='%d'>" % (quoteattr(uri), quoteattr(name), s)
-	print "    <summary>%s</summary>" % escape(summary)
-	if category:
-		print "    <category>%s</category>" % escape(category)
-	print "  </result>"
-print "</results>"
+			out.write("<result uri=%s name=%s score='%d'>" % (quoteattr(uri), quoteattr(name), s))
+			out.write("<summary>%s</summary>" % escape(summary))
+			if category:
+				out.write("<category>%s</category>" % escape(category))
+			out.write("</result>")
+		out.write("</results>")
