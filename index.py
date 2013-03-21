@@ -17,8 +17,8 @@ from zeroinstall.injector.namespaces import XMLNS_IFACE
 sa = StemmingAnalyzer()
 schema = fields.Schema(
 		uri		= fields.ID(unique=True, stored=True),
-		name		= fields.TEXT(stored=True),
-		summary		= fields.TEXT(stored=True),
+		name		= fields.TEXT(stored=True,field_boost=10.0),
+		summary		= fields.TEXT(stored=True, field_boost=5.0),
 		description	= fields.TEXT(analyzer=sa),
 		category	= fields.KEYWORD(stored=True),
 		homepage	= fields.STORED
@@ -65,4 +65,4 @@ class Indexer:
 		#print "%-32s\"%s\"" % ("%s (%s)" % (name, category), summary)
 
 	def commit(self):
-		self.writer.commit(optimize=True)
+		self.writer.commit()
