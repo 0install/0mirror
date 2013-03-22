@@ -73,7 +73,10 @@ if not site_address.endswith('/'):
 # Where we try if the primary site fails
 my_mirror = site_config.get('fetching', 'upstream_mirror') or None
 
-n_feeds_to_update = int(site_config.get('fetching', 'n_feeds_to_update'))
+if options.reindex:
+	n_feeds_to_update = 0
+else:
+	n_feeds_to_update = int(site_config.get('fetching', 'n_feeds_to_update'))
 
 public_dir = args[0]
 
