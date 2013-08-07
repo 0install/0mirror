@@ -119,7 +119,7 @@ def wait_with_timeout(delay, blocker):
 warnings = []
 def add_warning(title, msg):
 	warn("%s: %s", title, msg)
-	warnings.append((title, msg))
+	warnings.append((title, str(msg)))
 
 key_dir = os.path.join(public_dir, 'keys')
 ensure_dirs(key_dir)
