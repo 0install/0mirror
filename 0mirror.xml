@@ -24,6 +24,11 @@ backup.</description>
         <version before="3"/>
       </runner>
     </command>
+    <command name="serve" path="server.py">
+      <runner interface="http://repo.roscidus.com/python/python">
+        <version before="3"/>
+      </runner>
+    </command>
 
     <implementation id="." version="0.1-pre"/>
     <requires interface="http://0install.net/2007/interfaces/ZeroInstall.xml">
