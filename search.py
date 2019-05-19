@@ -19,7 +19,7 @@ class Searcher:
 		index = open_dir(index_dir)
 		self.searcher = index.searcher()
 
-		fields = ["name", "summary", "description"]
+		fields = ["baseuri", "name", "summary", "description"]
 		self.parser = MultifieldParser(fields, schema=index.schema)
 
 	def query(self, query_string, out):

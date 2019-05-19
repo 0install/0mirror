@@ -17,6 +17,7 @@ from zeroinstall.injector.namespaces import XMLNS_IFACE
 sa = StemmingAnalyzer()
 schema = fields.Schema(
 		uri		= fields.ID(unique=True, stored=True),
+		baseuri		= fields.KEYWORD(field_boost=10.0, lowercase=True),
 		name		= fields.KEYWORD(stored=True, field_boost=50.0, lowercase=True),
 		summary		= fields.TEXT(stored=True, field_boost=5.0),
 		description	= fields.TEXT(analyzer=sa),
@@ -47,6 +48,7 @@ class Indexer:
 			self.writer.delete_by_term('uri', unicode(url))
 			return		# Skip sub-feeds
 
+		baseuri = url.rsplit('/', 1)[1]
 		name = feed.get_name()
 		summary = feed.summary
 		description = feed.description
@@ -60,7 +62,7 @@ class Indexer:
 			break
 
 		print "Indexing", url
-		self.writer.update_document(uri=unicode(url), name=unicode(name),
+		self.writer.update_document(uri=unicode(url), baseuri=unicode(baseuri), name=unicode(name),
 				       summary=unicode(summary), description=unicode(description),
 				       category=category, homepage=homepage)
 
