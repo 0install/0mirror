@@ -8,7 +8,6 @@ import sys
 
 assert len(sys.argv) == 2, "Usage: server.py index-dir"
 index_path = sys.argv[1]
-searcher = search.Searcher(index_path)
 
 PORT = 8000
 
@@ -27,6 +26,7 @@ class Handler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/xml")
         self.end_headers()
         writer = codecs.getwriter('utf-8')(self.wfile)
+        searcher = search.Searcher(index_path)
         searcher.query(q[0].decode('utf-8'), writer)
         writer.flush()
 
