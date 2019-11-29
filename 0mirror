@@ -282,7 +282,7 @@ try:
 			if isinstance(x, gpg.ValidSig):
 				ensure_key(x.fingerprint)
 			else:
-				add_warning("Signature problem", x)
+				add_warning("Signature problem for %s" % feed.url, x)
 
 		shutil.copyfile(cached, version_path)
 		latest_new = latest + '.new'
