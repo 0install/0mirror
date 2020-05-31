@@ -20,12 +20,12 @@ backup.</description>
 
   <group license="OSI Approved :: GNU General Public License (GPL)" main="0mirror">
     <command name="run" path="0mirror">
-      <runner interface="http://repo.roscidus.com/python/python">
+      <runner interface="https://apps.0install.net/python/python.xml">
         <version before="3"/>
       </runner>
     </command>
     <command name="serve" path="server.py">
-      <runner interface="http://repo.roscidus.com/python/python">
+      <runner interface="https://apps.0install.net/python/python.xml">
         <version before="3"/>
       </runner>
     </command>
@@ -35,9 +35,9 @@ backup.</description>
       <version not-before="1.10"/>
       <environment insert="" mode="prepend" name="PYTHONPATH"/>
     </requires>
-    <requires interface='http://repo.roscidus.com/security/gnupg'>
+    <requires interface='https://apps.0install.net/utils/gnupg.xml'>
       <environment insert="bin" mode="prepend" name="PATH"/>
     </requires>
-    <requires interface='http://repo.roscidus.com/python/whoosh'/>
+    <requires interface='https://apps.0install.net/python/whoosh.xml'/>
   </group>
 </interface>
