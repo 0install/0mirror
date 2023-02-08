@@ -82,6 +82,7 @@ public_dir = args[0]
 
 feed_file = os.path.join(public_dir, 'feed-list')
 ignore_file = os.path.join(public_dir, 'ignore-list')
+dmca_file = os.path.join(public_dir, 'dmca-list')
 warnings_file = os.path.join(public_dir, 'warnings.xml')
 search_index_dir = os.path.join(public_dir, 'search-index')	# (doesn't need to be public, actually)
 
@@ -178,8 +179,10 @@ try:
 	feed_set = set(feed_uris)
 	ignore_set = set(filter(None, file(ignore_file).read().split('\n')))
 	inactive_set = set(line[1:] for line in lines if line.startswith('-'))
+	dmca_set = set(filter(None, file(dmca_file).read().split('\n')))
 
-	known_set = feed_set | inactive_set
+	known_set = (feed_set | inactive_set) - dmca_set
+	feed_set = feed_set - dmca_set
 
 	stale_feeds = []	# [(last-checked, feed)]
 
@@ -188,6 +191,16 @@ try:
 	indexer = index.Indexer(c, search_index_dir)
 
 	feeds = load_feeds(feed_uris)
+
+	for feed_url in dmca_set:
+		feed_dir = os.path.join(public_dir, get_feed_dir(feed_url))
+                ensure_dirs(feed_dir)
+                latest = os.path.join(feed_dir, 'latest.xml')
+		assert not os.path.exists(latest), ("%s had a DMCA complaint" % feed_dir)
+                feed_html = os.path.join(feed_dir, 'feed.html')
+                if not os.path.exists(feed_html):
+                    print "Adding DMCA redirect", feed_html
+                    os.symlink("../../../dmca.html", feed_html)
 
 	def last_checked(feed):
 		if feed is None:
@@ -228,6 +241,7 @@ try:
 		#assert feed.last_checked, feed
 
 	for feed_url in feed_uris:
+		if feed_url in dmca_set: continue
 		info("Processing feed '%s'", feed_url)
 		feed = feeds[feed_url]
 		if feed is None:
